@@ -86,7 +86,7 @@ adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data
 1. Launch ShadowAuto on the phone.
 2. On first launch, enter API Key, API URL, and model. The app can load available models after API Key and URL are entered.
 3. Tap the test button. If the model responds normally, the config is saved.
-4. Enter a goal, for example: `Use Taobao Flash Buy to order me a grande Starbucks vanilla latte`.
+4. Enter a goal, for example: `Use Meituan Waimai to order me a grande Starbucks vanilla latte`.
 5. Tap Run. The task input hides, and the virtual screen, Stop button, and progress logs appear.
 6. Tap the virtual screen preview to open a larger preview dialog.
 7. Tap Stop to stop the current task, or use the top-right stop button in the controller app to stop all tasks.
@@ -107,6 +107,19 @@ ShadowAuto uses a shell-owned ReAct-style automation loop:
 9. The loop repeats until the model calls `finish`, the user stops the task, or an error occurs.
 
 This architecture keeps the automated app off the main display while still allowing the user to monitor progress from the controller app.
+
+## Paddle Lite Offline OCR
+
+The `paddler-ocr` module contains the optional PaddleOCR Android integration for visual fallback on self-rendered or accessibility-opaque pages. The shell process calls this module directly; the controller app does not contain OCR code. The default build does not package OCR models or native libraries. Enable it with:
+
+```sh
+./gradlew :paddler-ocr:preparePaddleLiteOcr
+./gradlew :android-shell:copyPaddleLiteOcrRuntime
+```
+
+The prepare task downloads PaddleLite v2.10, OpenCV Android SDK, the PP-OCRv2 Chinese mobile models, and labels. Generated files live under `paddler-ocr/PaddleLite`, `paddler-ocr/OpenCV`, and `paddler-ocr/PaddleOcrAssets`; they are ignored by git.
+
+The Java entry point is `com.silentauto.paddlerocr.PaddleOcrEngine`. After `init()`, call `recognize(Bitmap)` to get text, confidence, and bounding boxes. Runtime files are copied to `android-shell/build/ocr-runtime` and uploaded to `/data/local/tmp/shadowauto/ocr` by the web launcher.
 
 ## JSON-RPC Overview
 

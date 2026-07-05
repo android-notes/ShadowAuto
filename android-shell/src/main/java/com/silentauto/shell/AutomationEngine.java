@@ -1,5 +1,8 @@
 package com.silentauto.shell;
 
+import android.graphics.Bitmap;
+import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 
@@ -7,6 +10,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.silentauto.paddlerocr.PaddleOcrEngine;
+import com.silentauto.paddlerocr.PaddleOcrResult;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 final class AutomationEngine {
     private static final int MAX_STEPS = 25;
-    private static final int MAX_LAYOUT_TOOL_CALLS = 3;
+    private static final int MAX_OBSERVATION_TOOL_CALLS = 4;
     private static final int DISPLAY_WIDTH = 720;
     private static final int DISPLAY_HEIGHT = 1280;
     private static final int DISPLAY_DPI = 320;
@@ -38,6 +43,7 @@ final class AutomationEngine {
     private final Map<String, TaskState> tasks = new LinkedHashMap<>();
     private final AtomicInteger nextTaskId = new AtomicInteger(1);
     private UiBridge ui;
+    private PaddleOcrEngine ocr;
 
     AutomationEngine(Config config, LogHub logs) {
         this.baseConfig = config;
@@ -480,10 +486,11 @@ final class AutomationEngine {
                 6. Use press_key with search or enter to submit focused search/input fields when appropriate.
                 7. Use scroll_ui when more content is needed. direction means content direction: down reveals lower content, up reveals upper content.
                 8. Use get_ui_layout mode=simple after a UI-changing action if the next target is uncertain; use mode=full only when simple lacks needed nodes.
-                9. Use finish only when the visible UI proves the user's goal is complete.
-                10. Search text candidate is the text to enter after opening a search field. If it is non-empty and the previous action clicked or focused a search/input field, call input_text with exactly that text; do not wait.
-                11. Do not call wait repeatedly on sparse or empty UI. After two waits, call get_ui_layout, input_text, press_back, scroll_ui, or another concrete tool.
-                12. If a search was submitted and the UI dump has windows but inputs=[] and targets=[], the page may be visually rendered but accessibility-opaque. Do not press_back or restart the search only because nodes are missing. Prefer get_ui_layout(full), wait once, or scroll_ui.
+                9. Use get_screen_ocr when UI layout is sparse, empty, wrong, or the visible page has text without accessibility nodes. OCR bounds are display-local.
+                10. Use finish only when the visible UI proves the user's goal is complete.
+                11. Search text candidate is the text to enter after opening a search field. If it is non-empty and the previous action clicked or focused a search/input field, call input_text with exactly that text; do not wait.
+                12. Do not call wait repeatedly on sparse or empty UI. After two waits, call get_ui_layout, get_screen_ocr, input_text, press_back, scroll_ui, or another concrete tool.
+                13. If a search was submitted and the UI dump has windows but inputs=[] and targets=[], the page may be visually rendered but accessibility-opaque. Do not press_back or restart the search only because nodes are missing. Prefer get_screen_ocr, get_ui_layout(full), wait once, or scroll_ui.
                 Goal: %s
                 Package: %s
                 Step: %d
@@ -499,32 +506,132 @@ final class AutomationEngine {
         messages.add(AiClient.message("system", TOOL_SYSTEM_PROMPT));
         messages.add(AiClient.message("user", prompt));
         JsonArray tools = ActionTools.tools();
-        for (int layoutCalls = 0; layoutCalls <= MAX_LAYOUT_TOOL_CALLS; layoutCalls++) {
+        for (int observationCalls = 0; observationCalls <= MAX_OBSERVATION_TOOL_CALLS; observationCalls++) {
             AiClient.ToolResult result = ai.callTools(messages, tools);
             if (result.toolCalls.isEmpty()) {
                 return ActionDecision.from(result.content);
             }
             AiClient.ToolCall call = result.toolCalls.get(0);
             logs.task(task.taskId, "tool_call " + call.name + " " + call.arguments);
-            if (task.pendingSearchSubmit && task.searchSubmitAttempts < 2 && ActionTools.isLayoutTool(call)) {
-                logs.task(task.taskId, "auto submit search before layout dump");
+            if (task.pendingSearchSubmit && task.searchSubmitAttempts < 2 && ActionTools.isObservationTool(call)) {
+                logs.task(task.taskId, "auto submit search before observation");
                 return ActionDecision.submitSearch("submit focused search before reading more layout");
             }
-            if (!ActionTools.isLayoutTool(call)) {
+            if (!ActionTools.isObservationTool(call)) {
                 return ActionDecision.fromTool(call);
             }
-            if (layoutCalls == MAX_LAYOUT_TOOL_CALLS) {
-                logs.task(task.taskId, "get_ui_layout limit reached");
+            if (observationCalls == MAX_OBSERVATION_TOOL_CALLS) {
+                logs.task(task.taskId, "observation tool limit reached");
                 return ActionDecision.wait(300);
             }
-            String mode = ActionTools.layoutMode(call.arguments);
-            String layout = bridge.dump(displayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, mode);
-            logLayoutDump(task.taskId, displayId, mode, layout);
-            messages.add(ActionTools.toolCallMessage(call, layoutCalls));
-            messages.add(ActionTools.toolResultMessage(ActionTools.toolCallId(call, layoutCalls), truncate(layout, MAX_UI_CHARS)));
-            logs.task(task.taskId, "layout returned to AI");
+            String observation;
+            if (ActionTools.isOcrTool(call)) {
+                observation = screenOcrJson(task);
+                logs.task(task.taskId, "ocr returned to AI");
+            } else {
+                String mode = ActionTools.layoutMode(call.arguments);
+                observation = bridge.dump(displayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, mode);
+                logLayoutDump(task.taskId, displayId, mode, observation);
+                logs.task(task.taskId, "layout returned to AI");
+            }
+            messages.add(ActionTools.toolCallMessage(call, observationCalls));
+            messages.add(ActionTools.toolResultMessage(ActionTools.toolCallId(call, observationCalls), truncate(observation, MAX_UI_CHARS)));
         }
         return ActionDecision.wait(1000);
+    }
+
+    private synchronized String screenOcrJson(TaskState task) {
+        JsonObject object = new JsonObject();
+        object.addProperty("displayId", task.display == null ? -1 : task.display.displayId);
+        object.addProperty("width", task.display == null ? DISPLAY_WIDTH : task.display.width);
+        object.addProperty("height", task.display == null ? DISPLAY_HEIGHT : task.display.height);
+        JsonArray array = new JsonArray();
+        object.add("results", array);
+        Bitmap bitmap = null;
+        try {
+            if (task.display == null) {
+                object.addProperty("error", "virtual display is not available");
+                return JsonRpc.GSON.toJson(object);
+            }
+            logs.logcat(task.taskId, "ocr_dump_begin displayId=" + task.display.displayId);
+            bitmap = ScreenCapture.latestBitmap(task.display, 8, 120);
+            if (bitmap == null) {
+                object.addProperty("error", "no latest frame available");
+                logs.logcat(task.taskId, "ocr_dump_error no latest frame available");
+                return JsonRpc.GSON.toJson(object);
+            }
+            List<PaddleOcrResult> results = getOcrEngine().recognize(bitmap);
+            StringBuilder combined = new StringBuilder();
+            for (int i = 0; i < results.size(); i++) {
+                PaddleOcrResult result = results.get(i);
+                if (!Config.empty(result.getText())) {
+                    if (combined.length() > 0) {
+                        combined.append('\n');
+                    }
+                    combined.append(result.getText());
+                }
+                array.add(ocrResultJson(i, result));
+            }
+            object.addProperty("text", combined.toString());
+            logOcrResults(task.taskId, results);
+            logs.logcat(task.taskId, "ocr_dump_end displayId=" + task.display.displayId);
+        } catch (Throwable e) {
+            object.addProperty("error", e.getMessage());
+            logs.error(task.taskId, "ocr dump failed", e);
+        } finally {
+            if (bitmap != null) {
+                bitmap.recycle();
+            }
+        }
+        return JsonRpc.GSON.toJson(object);
+    }
+
+    private PaddleOcrEngine getOcrEngine() throws Exception {
+        if (ocr == null) {
+            logs.logcat(null, "ocr_engine_init_begin");
+            ocr = new PaddleOcrEngine();
+            ocr.init();
+            logs.logcat(null, "ocr_engine_init_done");
+        }
+        return ocr;
+    }
+
+    private JsonObject ocrResultJson(int index, PaddleOcrResult result) {
+        JsonObject object = new JsonObject();
+        Rect bounds = result.getBounds();
+        object.addProperty("index", index);
+        object.addProperty("text", result.getText());
+        object.addProperty("confidence", result.getConfidence());
+        JsonObject rect = new JsonObject();
+        rect.addProperty("left", bounds.left);
+        rect.addProperty("top", bounds.top);
+        rect.addProperty("right", bounds.right);
+        rect.addProperty("bottom", bounds.bottom);
+        rect.addProperty("centerX", bounds.centerX());
+        rect.addProperty("centerY", bounds.centerY());
+        object.add("bounds", rect);
+        JsonArray points = new JsonArray();
+        for (Point point : result.getPoints()) {
+            JsonObject item = new JsonObject();
+            item.addProperty("x", point.x);
+            item.addProperty("y", point.y);
+            points.add(item);
+        }
+        object.add("points", points);
+        return object;
+    }
+
+    private void logOcrResults(String taskId, List<PaddleOcrResult> results) {
+        logs.logcat(taskId, "ocr_result_count=" + results.size());
+        for (int i = 0; i < results.size(); i++) {
+            PaddleOcrResult result = results.get(i);
+            Rect bounds = result.getBounds();
+            logs.logcat(taskId, "ocr[" + i + "] text=" + result.getText()
+                    + " confidence=" + result.getConfidence()
+                    + " bounds=" + bounds.left + "," + bounds.top + "," + bounds.right + "," + bounds.bottom
+                    + " cls=" + result.getClsIndex()
+                    + " clsConfidence=" + result.getClsConfidence());
+        }
     }
 
     private void logLayoutDump(String taskId, int displayId, String mode, String layout) {

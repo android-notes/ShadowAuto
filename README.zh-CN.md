@@ -85,7 +85,7 @@ adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data
 1. 在手机上打开隐控。
 2. 首次进入时填写 API Key、API URL 和模型。填写 API Key 和 URL 后，App 可以自动拉取可用模型。
 3. 点击测试连接。模型正常响应后，配置会被保存。
-4. 输入任务目标，例如：`用淘宝闪购给我买杯星巴克香草拿铁，大杯`。
+4. 输入任务目标，例如：`用美团外卖给我买杯星巴克香草拿铁，大杯`。
 5. 点击执行。任务输入框会隐藏，开始显示虚拟投屏、停止按钮和进度日志。
 6. 点击虚拟投屏区域，可以在弹窗中放大查看。
 7. 点击停止可以停止当前任务；也可以点击右上角停止按钮，一键停止所有任务。
@@ -106,6 +106,19 @@ adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data
 9. 这个循环会持续执行，直到模型调用 `finish`、用户停止任务，或发生错误。
 
 这种架构可以让目标应用在虚拟屏里运行，用户则在控制端 App 中观察进度，不需要把自动化操作暴露在主屏幕上。
+
+## Paddle Lite 离线 OCR
+
+`paddler-ocr` 模块负责 PaddleOCR Android 集成，用于对不可访问、自绘页面做视觉兜底。shell 进程会直接调用该模块，controller-app 不再包含 OCR 代码。默认构建不打包 OCR 模型和 native 库；需要启用时执行：
+
+```sh
+./gradlew :paddler-ocr:preparePaddleLiteOcr
+./gradlew :android-shell:copyPaddleLiteOcrRuntime
+```
+
+该任务会下载 PaddleLite v2.10、OpenCV Android SDK、PP-OCRv2 中文移动端模型和字典。生成文件位于 `paddler-ocr/PaddleLite`、`paddler-ocr/OpenCV`、`paddler-ocr/PaddleOcrAssets`，这些目录不会提交到 git。
+
+Java 入口是 `com.silentauto.paddlerocr.PaddleOcrEngine`，调用 `init()` 后可通过 `recognize(Bitmap)` 获取文本、置信度和坐标框。运行时文件会复制到 `android-shell/build/ocr-runtime`，并由浏览器启动器上传到 `/data/local/tmp/shadowauto/ocr`。
 
 ## JSON-RPC 概览
 

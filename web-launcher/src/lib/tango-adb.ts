@@ -7,6 +7,19 @@ const credentialStore = new AdbWebCredentialStore('ShadowAuto');
 const devicePath = '/data/local/tmp/silent-shell.apk';
 const pidPath = '/data/local/tmp/silent-auto.pid';
 const processMarker = 'com.silentauto.shell.Main';
+const ocrRoot = '/data/local/tmp/shadowauto/ocr';
+const ocrFiles = [
+  'lib/arm64-v8a/libNative.so',
+  'lib/arm64-v8a/libc++_shared.so',
+  'lib/arm64-v8a/libomp.so',
+  'lib/arm64-v8a/libhiai.so',
+  'lib/arm64-v8a/libhiai_ir.so',
+  'lib/arm64-v8a/libhiai_ir_build.so',
+  'models/ch_PP-OCRv2/det_db.nb',
+  'models/ch_PP-OCRv2/rec_crnn.nb',
+  'models/ch_PP-OCRv2/cls.nb',
+  'labels/ppocr_keys_v1.txt'
+];
 
 export function supported() {
   return Boolean(AdbDaemonWebUsbDeviceManager.BROWSER);
@@ -24,6 +37,7 @@ export async function launchShell() {
   const adb = await connect(selected);
   try {
     await push(adb, '/silent-shell.apk', devicePath);
+    await pushOcrRuntime(adb);
     await shell(adb, startCommand());
   } finally {
     await adb.close();
@@ -59,6 +73,36 @@ async function push(adb: Adb, url: string, path: string) {
   }
 }
 
+async function pushOcrRuntime(adb: Adb) {
+  await shell(adb, `mkdir -p ${quote(ocrRoot)}`);
+  for (const file of ocrFiles) {
+    await pushOptional(adb, `/ocr/${file}`, `${ocrRoot}/${file}`);
+  }
+}
+
+async function pushOptional(adb: Adb, url: string, path: string) {
+  const response = await fetch(url);
+  if (response.status === 404) {
+    return;
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`download failed: ${response.status}`);
+  }
+  await shell(adb, `mkdir -p ${quote(parentPath(path))}`);
+  const sync = await adb.sync();
+  try {
+    await sync.write({
+      filename: path,
+      file: response.body as unknown as AdbReadableStream<MaybeConsumable<Uint8Array>>,
+      type: LinuxFileType.File,
+      permission: 0o644,
+      mtime: Math.floor(Date.now() / 1000)
+    });
+  } finally {
+    await sync.dispose();
+  }
+}
+
 async function shell(adb: Adb, command: string) {
   const protocol = adb.subprocess.shellProtocol;
   if (!protocol?.isSupported) {
@@ -79,6 +123,14 @@ function startCommand() {
   const env = `CLASSPATH=${quote(devicePath)}`;
   const main = 'app_process /system/bin com.silentauto.shell.Main --port=43110';
   return `${killPrevious}; ${env} nohup setsid ${main} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
+}
+
+function parentPath(path: string) {
+  const index = path.lastIndexOf('/');
+  if (index <= 0) {
+    return '/';
+  }
+  return path.slice(0, index);
 }
 
 function quote(value: string) {

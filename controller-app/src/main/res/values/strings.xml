@@ -31,7 +31,7 @@
     <string name="stop_all_sent">Stop-all request sent</string>
     <string name="rpc_error">RPC error: %1$s</string>
     <string name="rpc_shell_unavailable">Shell service is not running. Start ShadowAuto shell from the web launcher or ADB, then retry.</string>
-    <string name="task_goal_hint">Use Taobao Flash Buy to order me a grande Starbucks vanilla latte</string>
+    <string name="task_goal_hint">Use Meituan Waimai to order me a grande Starbucks vanilla latte</string>
     <string name="run">Run</string>
     <string name="running">Running</string>
     <string name="stop">Stop</string>

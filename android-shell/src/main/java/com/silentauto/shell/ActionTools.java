@@ -15,6 +15,9 @@ final class ActionTools {
         tools.add(tool("get_ui_layout", "Return the latest UiAutomation JSON dump for the current virtual display. mode=simple returns compact actionable UI; mode=full returns the complete tree.",
                 props(prop("mode", "string", "simple or full"), prop("reason", "string", "why the latest layout is needed")),
                 required()));
+        tools.add(tool("get_screen_ocr", "Return offline OCR text and bounds from the latest virtual display screenshot. Use it when UI layout is sparse, empty, wrong, or visible text is drawn without accessibility nodes.",
+                props(prop("reason", "string", "why screen OCR is needed")),
+                required()));
         tools.add(tool("tap_target", "Click a UI target by targetIndex from the UI dump targets array. This uses Accessibility ACTION_CLICK first and falls back to the target center.",
                 props(prop("targetIndex", "integer", "targetIndex from the latest UI targets array"), prop("reason", "string", "why this target should be clicked")),
                 required("targetIndex")));
@@ -73,6 +76,14 @@ final class ActionTools {
         return "get_ui_layout".equals(call.name.toLowerCase(Locale.US));
     }
 
+    static boolean isOcrTool(AiClient.ToolCall call) {
+        return "get_screen_ocr".equals(call.name.toLowerCase(Locale.US));
+    }
+
+    static boolean isObservationTool(AiClient.ToolCall call) {
+        return isLayoutTool(call) || isOcrTool(call);
+    }
+
     static String layoutMode(JsonObject args) {
         String mode = string(args, "mode", UiBridge.MODE_SIMPLE).toLowerCase(Locale.US);
         if (UiBridge.MODE_FULL.equals(mode)) {
@@ -110,7 +121,7 @@ final class ActionTools {
         if (!Config.empty(call.id)) {
             return call.id;
         }
-        return "call_get_ui_layout_" + index;
+        return "call_" + call.name.toLowerCase(Locale.US) + "_" + index;
     }
 
     private static JsonObject tool(String name, String description, JsonObject properties, JsonArray required) {

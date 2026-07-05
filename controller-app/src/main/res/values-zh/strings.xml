@@ -31,7 +31,7 @@
     <string name="stop_all_sent">已发送停止全部任务</string>
     <string name="rpc_error">RPC 错误: %1$s</string>
     <string name="rpc_shell_unavailable">Shell 服务未运行，请先通过浏览器启动器或 ADB 启动 ShadowAuto shell 后重试。</string>
-    <string name="task_goal_hint">用淘宝闪购给我买杯星巴克香草拿铁，大杯</string>
+    <string name="task_goal_hint">用美团外卖给我买杯星巴克香草拿铁，大杯</string>
     <string name="run">执行</string>
     <string name="running">执行中</string>
     <string name="stop">停止</string>

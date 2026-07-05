@@ -7,7 +7,6 @@ import android.os.SystemClock;
 import android.util.Base64;
 
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
 
 final class FrameStreamer implements Runnable {
     private static final int FRAME_INTERVAL_MS = 500;
@@ -73,19 +72,7 @@ final class FrameStreamer implements Runnable {
     }
 
     private void send(Image image) {
-        int width = image.getWidth();
-        int height = image.getHeight();
-        Image.Plane plane = image.getPlanes()[0];
-        ByteBuffer buffer = plane.getBuffer();
-        int pixelStride = plane.getPixelStride();
-        int rowStride = plane.getRowStride();
-        int bitmapWidth = rowStride / pixelStride;
-
-        Bitmap padded = Bitmap.createBitmap(bitmapWidth, height, Bitmap.Config.ARGB_8888);
-        padded.copyPixelsFromBuffer(buffer);
-        Bitmap cropped = Bitmap.createBitmap(padded, 0, 0, width, height);
-        padded.recycle();
-
+        Bitmap cropped = ScreenCapture.bitmapFromImage(image);
         Bitmap output = scale(cropped);
         if (output != cropped) {
             cropped.recycle();

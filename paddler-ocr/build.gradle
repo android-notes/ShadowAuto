@@ -1,0 +1,97 @@
+plugins {
+    id "com.android.library"
+}
+
+import java.security.MessageDigest
+
+def enablePaddleLiteOcr = providers.gradleProperty("enablePaddleLiteOcr")
+        .map { it.toBoolean() }
+        .orElse(true)
+        .get()
+
+android {
+    namespace = "com.silentauto.paddlerocr"
+    compileSdk = 36
+    if (enablePaddleLiteOcr) {
+        ndkVersion = "23.1.7779620"
+    }
+
+    defaultConfig {
+        minSdk = 29
+        if (enablePaddleLiteOcr) {
+            ndk {
+                abiFilters "arm64-v8a"
+            }
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-std=c++11 -frtti -fexceptions -Wno-format"
+                    arguments "-DANDROID_PLATFORM=android-23", "-DANDROID_STL=c++_shared", "-DANDROID_ARM_NEON=TRUE"
+                }
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    if (enablePaddleLiteOcr) {
+        externalNativeBuild {
+            cmake {
+                path file("src/main/cpp/CMakeLists.txt")
+                version "3.22.1"
+            }
+        }
+    }
+}
+
+def paddleLiteArchives = [
+        [
+                src : "https://paddleocr.bj.bcebos.com/libs/paddle_lite_libs_v2_10.tar.gz",
+                dest: "PaddleLite"
+        ],
+        [
+                src : "https://paddlelite-demo.bj.bcebos.com/libs/android/opencv-4.2.0-android-sdk.tar.gz",
+                dest: "OpenCV"
+        ],
+        [
+                src : "https://paddleocr.bj.bcebos.com/PP-OCRv2/lite/ch_PP-OCRv2.tar.gz",
+                dest: "PaddleOcrAssets/models"
+        ],
+        [
+                src : "https://paddleocr.bj.bcebos.com/dygraph_v2.0/lite/ch_dict.tar.gz",
+                dest: "PaddleOcrAssets/labels"
+        ]
+]
+
+tasks.register("preparePaddleLiteOcr") {
+    group = "paddle"
+    description = "Download Paddle Lite, OpenCV, PP-OCRv2 mobile models, and labels for offline OCR."
+    doLast {
+        File cacheDir = file("cache/paddle-lite-ocr")
+        if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+            throw new GradleException("Create cache directory failed: ${cacheDir}")
+        }
+        paddleLiteArchives.each { archive ->
+            MessageDigest digest = MessageDigest.getInstance("MD5")
+            digest.update(archive.src.getBytes("UTF-8"))
+            String cacheName = new BigInteger(1, digest.digest()).toString(32) + ".tar.gz"
+            File archiveFile = new File(cacheDir, cacheName)
+            File destDir = file(archive.dest)
+            if (!archiveFile.exists()) {
+                ant.get(src: archive.src, dest: archiveFile)
+            }
+            if (!destDir.exists()) {
+                copy {
+                    from tarTree(archiveFile)
+                    into destDir
+                }
+            }
+        }
+    }
+}
+
+if (enablePaddleLiteOcr) {
+    preBuild.dependsOn tasks.named("preparePaddleLiteOcr")
+}

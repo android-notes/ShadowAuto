@@ -11,17 +11,30 @@ public final class Main {
     private static final String PROCESS_MARKER = "com.silentauto.shell.Main";
 
     public static void main(String[] args) throws Exception {
+        Config config = Config.from(args);
+        LogHub logs = new LogHub();
+        if (hasFlag(args, "--ocr-test")) {
+            OcrTest.run(logs);
+            return;
+        }
         try {
             Looper.prepareMainLooper();
         } catch (Throwable ignored) {
         }
         killExistingShellProcesses();
         ShellContext.init();
-        Config config = Config.from(args);
-        LogHub logs = new LogHub();
         AutomationEngine engine = new AutomationEngine(config, logs);
         logs.info("silent shell listening on 127.0.0.1:" + config.port);
         new RpcServer(config.port, engine, logs).run();
+    }
+
+    private static boolean hasFlag(String[] args, String flag) {
+        for (String arg : args) {
+            if (flag.equals(arg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void killExistingShellProcesses() {

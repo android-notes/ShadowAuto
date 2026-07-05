@@ -8,3 +8,9 @@ local.properties
 
 web-launcher/node_modules/
 web-launcher/.svelte-kit/
+
+paddler-ocr/PaddleLite/
+paddler-ocr/OpenCV/
+paddler-ocr/PaddleOcrAssets/
+paddler-ocr/cache/
+paddler-ocr/.cxx/
