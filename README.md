@@ -26,7 +26,8 @@ If the current page cannot play the embedded video, open [shadowauto.mp4](shadow
 
 ## Technical Deep Dive
 
-- [Android Virtual Display and AI background automation practice](docs/android-virtual-display-ai-automation.md) (Chinese)
+- [Android Virtual Display and AI Background Automation](docs/android-virtual-display-ai-automation.en.md)
+- [Android 虚拟投屏与 AI 后台静默自动化实践](docs/android-virtual-display-ai-automation.md) (Chinese)
 
 ## Project Layout
 

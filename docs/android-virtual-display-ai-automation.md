@@ -1,5 +1,7 @@
 # Android 虚拟投屏与 AI 后台静默自动化实践
 
+[English version](android-virtual-display-ai-automation.en.md)
+
 隐控 ShadowAuto 的核心目标是：让真实 Android 应用运行在后台虚拟屏中，由 AI 大模型读取屏幕状态、决定下一步动作，并把点击、输入、滚动等事件注入到这个虚拟屏，而不是用户正在使用的主屏幕。
 
 这类架构和普通脚本点击最大的区别在于：它不依赖固定坐标，也不要求目标 App 出现在实体屏幕上。自动化任务运行在 `VirtualDisplay`，控制端 App 只负责输入目标、展示虚拟投屏和进度日志；真正的感知、推理和执行都在 shell 进程内完成。
