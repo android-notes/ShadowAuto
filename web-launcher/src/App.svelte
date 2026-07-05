@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { launchShell, supported, type LaunchProgress } from './lib/tango-adb';
 
   type Locale = 'zh' | 'en';
@@ -10,9 +10,29 @@
     deviceBusy: string;
     unsupported: string;
     ready: string;
+    setupTitle: string;
+    setupNotes: string[];
+    developerGuideTitle: string;
     progress(progress: LaunchProgress): string;
     failed(message: string): string;
   };
+
+  type GuideLink = {
+    name: string;
+    url: string;
+  };
+
+  type ProgressItem = {
+    time: string;
+    text: string;
+  };
+
+  const developerGuides: GuideLink[] = [
+    { name: 'Xiaomi', url: 'https://jingyan.baidu.com/article/ce436649ca6c877773afd3e2.html' },
+    { name: 'Huawei', url: 'https://jingyan.baidu.com/article/a378c960e87118b3282830bc.html' },
+    { name: 'OPPO', url: 'https://jingyan.baidu.com/article/cb5d6105b0936a005d2fe052.html' },
+    { name: 'VIVO', url: 'https://jingyan.baidu.com/article/335530da406f4358cb41c3b4.html' }
+  ];
 
   const copies: Record<Locale, Copy> = {
     zh: {
@@ -21,7 +41,15 @@
       starting: '启动中...',
       deviceBusy: '设备已被其他程序占用，请关闭 Android Studio 并杀死 adb 后再次重试。',
       unsupported: '当前浏览器不支持 WebUSB ADB，请使用 Chrome 或 Edge，并通过 HTTPS 或 localhost 打开。',
-      ready: '现在您可以在手机上的 隐控 App中输入自动化任务并点击执行',
+      ready: '现在隐控 App 已打开。你需要先配置 API KEY 才能使用手机自动化；配置完成后输入自动化任务并点击执行。',
+      setupTitle: '连接前准备',
+      setupNotes: [
+        '请先打开手机开发者选项，并开启 USB 调试。',
+        '部分小米手机还需要开启 USB 调试（安全设置）。',
+        '首次连接时，手机上可能会弹出允许调试提示，请点击允许。',
+        '安装控制端 App 时，如果手机弹出允许安装提示，请点击允许安装。'
+      ],
+      developerGuideTitle: '开发者选项参考',
       progress: progressTextZh,
       failed: (message: string) => `启动失败：${message}`
     },
@@ -31,7 +59,15 @@
       starting: 'Starting...',
       deviceBusy: 'The device is already in use. Please close Android Studio and kill adb, then retry.',
       unsupported: 'This browser does not support WebUSB ADB. Please use Chrome or Edge over HTTPS or localhost.',
-      ready: 'You can now enter an automation task in the ShadowAuto app on your phone and tap Run.',
+      ready: 'The ShadowAuto app is now open. Configure an API key before using phone automation, then enter a task and tap Run.',
+      setupTitle: 'Before Connecting',
+      setupNotes: [
+        'Enable Developer options and USB debugging on the phone first.',
+        'Some Xiaomi phones also require USB debugging (Security settings).',
+        'On first connection, tap Allow on the phone when the USB debugging prompt appears.',
+        'When installing the controller app, tap Allow install if the phone shows an install prompt.'
+      ],
+      developerGuideTitle: 'Developer option guides',
       progress: progressTextEn,
       failed: (message: string) => `Failed to start: ${message}`
     }
@@ -40,7 +76,8 @@
   let busy = false;
   let errorText = '';
   let readyText = '';
-  let progressItems: string[] = [];
+  let progressElement: HTMLOListElement | null = null;
+  let progressItems: ProgressItem[] = [];
   let locale: Locale = 'en';
 
   $: copy = copies[locale];
@@ -71,8 +108,27 @@
     }
   }
 
-  function addProgress(progress: LaunchProgress) {
-    progressItems = [...progressItems, copy.progress(progress)];
+  async function addProgress(progress: LaunchProgress) {
+    progressItems = [...progressItems, { time: formatTime(new Date()), text: copy.progress(progress) }];
+    await tick();
+    scrollProgressToBottom();
+  }
+
+  function scrollProgressToBottom() {
+    if (progressElement) {
+      progressElement.scrollTop = progressElement.scrollHeight;
+    }
+  }
+
+  function formatTime(date: Date) {
+    const hours = padTime(date.getHours());
+    const minutes = padTime(date.getMinutes());
+    const seconds = padTime(date.getSeconds());
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
+  function padTime(value: number) {
+    return String(value).padStart(2, '0');
   }
 
   function detectLocale(): Locale {
@@ -112,8 +168,12 @@
         return `跳过缺失文件 ${progress.name}`;
       case 'startShell':
         return '正在启动后台 shell 进程';
+      case 'allowInstall':
+        return '请点击手机上的允许安装按钮';
       case 'installController':
         return '正在重装隐控 App';
+      case 'configureApiKey':
+        return '你需要先配置 API KEY 才能使用手机自动化';
       case 'openController':
         return '正在打开隐控 App';
     }
@@ -133,8 +193,12 @@
         return `Skipping missing file ${progress.name}`;
       case 'startShell':
         return 'Starting the background shell process';
+      case 'allowInstall':
+        return 'Tap Allow on the phone when the install prompt appears';
       case 'installController':
         return 'Reinstalling the ShadowAuto app';
+      case 'configureApiKey':
+        return 'Configure an API key before using phone automation';
       case 'openController':
         return 'Opening the ShadowAuto app';
     }
@@ -164,13 +228,30 @@
     <button disabled={busy} on:click={start}>
       <span>{busy ? copy.starting : copy.start}</span>
     </button>
+    <div class="setup">
+      <strong>{copy.setupTitle}</strong>
+      <ul>
+        {#each copy.setupNotes as note}
+          <li>{note}</li>
+        {/each}
+      </ul>
+      <div class="guide-links" aria-label={copy.developerGuideTitle}>
+        <span>{copy.developerGuideTitle}</span>
+        {#each developerGuides as guide}
+          <a href={guide.url} target="_blank" rel="noreferrer">{guide.name}</a>
+        {/each}
+      </div>
+    </div>
     {#if errorText}
       <p class="error" aria-live="polite">{errorText}</p>
     {/if}
     {#if progressItems.length}
-      <ol class="progress" aria-live="polite">
+      <ol bind:this={progressElement} class="progress" aria-live="polite">
         {#each progressItems as item}
-          <li>{item}</li>
+          <li>
+            <time>{item.time}</time>
+            <span>{item.text}</span>
+          </li>
         {/each}
       </ol>
     {/if}
@@ -186,7 +267,7 @@
     font-family: Inter, system-ui, sans-serif;
     background: #06070b;
     color: #f8fafc;
-    overflow: hidden;
+    overflow: auto;
   }
 
   main {
@@ -462,6 +543,80 @@
     z-index: 1;
   }
 
+  .setup {
+    width: min(520px, calc(100vw - 48px));
+    margin: 0;
+    padding: 16px 18px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.62);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+      0 18px 50px rgba(0, 0, 0, 0.22);
+    color: #dbeafe;
+    font-size: 13px;
+    line-height: 1.55;
+    backdrop-filter: blur(12px);
+  }
+
+  .setup strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #f8fafc;
+    font-size: 14px;
+  }
+
+  .setup ul {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .setup li {
+    position: relative;
+    padding-left: 14px;
+  }
+
+  .setup li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: #2dd4bf;
+    box-shadow: 0 0 12px rgba(45, 212, 191, 0.58);
+  }
+
+  .guide-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  .guide-links span {
+    color: rgba(226, 232, 240, 0.74);
+  }
+
+  .guide-links a {
+    padding: 4px 10px;
+    border: 1px solid rgba(125, 211, 252, 0.3);
+    border-radius: 999px;
+    background: rgba(14, 165, 233, 0.12);
+    color: #bae6fd;
+    text-decoration: none;
+  }
+
+  .guide-links a:hover {
+    border-color: rgba(45, 212, 191, 0.52);
+    color: #ccfbf1;
+  }
+
   .error {
     width: min(520px, calc(100vw - 48px));
     margin: 0;
@@ -500,21 +655,23 @@
   }
 
   .progress li {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: baseline;
     padding: 4px 0;
   }
 
-  .progress li::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    margin-top: 7px;
-    flex: 0 0 auto;
-    border-radius: 999px;
-    background: #2dd4bf;
-    box-shadow: 0 0 14px rgba(45, 212, 191, 0.62);
+  .progress time {
+    color: #67e8f9;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .progress span {
+    min-width: 0;
   }
 
   .ready {

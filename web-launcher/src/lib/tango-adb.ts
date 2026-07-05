@@ -30,7 +30,9 @@ export type LaunchProgress =
   | { action: 'upload'; name: string }
   | { action: 'skip'; name: string }
   | { action: 'startShell' }
+  | { action: 'allowInstall' }
   | { action: 'installController' }
+  | { action: 'configureApiKey' }
   | { action: 'openController' };
 
 export type LaunchProgressCallback = (progress: LaunchProgress) => void;
@@ -57,8 +59,10 @@ export async function launchShell(report: LaunchProgressCallback = () => {}) {
     report({ action: 'startShell' });
     await shell(adb, startCommand());
     await push(adb, assetUrl('controller-app.apk'), controllerPath, 'controller-app.apk', report);
+    report({ action: 'allowInstall' });
     report({ action: 'installController' });
     await shell(adb, installControllerCommand());
+    report({ action: 'configureApiKey' });
     report({ action: 'openController' });
     await shell(adb, openControllerCommand());
   } finally {

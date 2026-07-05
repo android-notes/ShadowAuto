@@ -68,6 +68,15 @@ adb install -r controller-app/build/outputs/apk/debug/controller-app-debug.apk
 
 Online launcher: [https://android-notes.github.io/ShadowAuto/](https://android-notes.github.io/ShadowAuto/)
 
+Before connecting, prepare the phone:
+
+- Enable Developer options and USB debugging.
+- Some Xiaomi phones also require USB debugging (Security settings).
+- On first connection, the phone may show an Allow USB debugging prompt; tap Allow on the phone.
+- When installing the controller app, tap Allow install if the phone shows an install prompt.
+- After installation, configure an API key in the ShadowAuto app before using phone automation.
+- Developer option references: [Xiaomi](https://jingyan.baidu.com/article/ce436649ca6c877773afd3e2.html), [Huawei](https://jingyan.baidu.com/article/a378c960e87118b3282830bc.html), [OPPO](https://jingyan.baidu.com/article/cb5d6105b0936a005d2fe052.html), [VIVO](https://jingyan.baidu.com/article/335530da406f4358cb41c3b4.html).
+
 You can also run it locally:
 
 ```sh

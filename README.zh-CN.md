@@ -66,6 +66,15 @@ adb install -r controller-app/build/outputs/apk/debug/controller-app-debug.apk
 
 线上启动器：[https://android-notes.github.io/ShadowAuto/](https://android-notes.github.io/ShadowAuto/)
 
+连接前请先完成手机准备：
+
+- 打开手机开发者选项，并开启 USB 调试。
+- 部分小米手机还需要开启 USB 调试（安全设置）。
+- 首次连接手机可能会弹出允许调试提示，请在手机上点击允许。
+- 安装控制端 App 时，如果手机弹出允许安装提示，请点击允许安装。
+- 安装完成后需要先在隐控 App 中配置 API KEY 才能使用手机自动化。
+- 开发者选项参考：[小米](https://jingyan.baidu.com/article/ce436649ca6c877773afd3e2.html)、[华为](https://jingyan.baidu.com/article/a378c960e87118b3282830bc.html)、[OPPO](https://jingyan.baidu.com/article/cb5d6105b0936a005d2fe052.html)、[VIVO](https://jingyan.baidu.com/article/335530da406f4358cb41c3b4.html)。
+
 也可以在本地运行：
 
 ```sh
