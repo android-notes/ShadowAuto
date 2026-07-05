@@ -60,9 +60,13 @@ if (enablePaddleLiteOcr) {
     }
 
     tasks.register("syncWebLauncherArtifacts", Copy) {
-        dependsOn("copyPaddleLiteOcrRuntime")
+        dependsOn("copyPaddleLiteOcrRuntime", ":controller-app:assembleDebug")
         from("build/outputs/apk/debug/android-shell-debug.apk") {
             rename { "silent-shell.apk" }
+            into(".")
+        }
+        from("../controller-app/build/outputs/apk/debug/controller-app-debug.apk") {
+            rename { "controller-app.apk" }
             into(".")
         }
         from("build/ocr-runtime") {

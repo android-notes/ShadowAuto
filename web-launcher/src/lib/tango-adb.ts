@@ -5,6 +5,8 @@ import type { MaybeConsumable, ReadableStream as AdbReadableStream } from '@yume
 
 const credentialStore = new AdbWebCredentialStore('ShadowAuto');
 const devicePath = '/data/local/tmp/silent-shell.apk';
+const controllerPath = '/data/local/tmp/shadowauto-controller.apk';
+const controllerComponent = 'com.silentauto.controller/.MainActivity';
 const pidPath = '/data/local/tmp/silent-auto.pid';
 const processMarker = 'com.silentauto.shell.Main';
 const ocrRoot = '/data/local/tmp/shadowauto/ocr';
@@ -21,24 +23,44 @@ const ocrFiles = [
   'labels/ppocr_keys_v1.txt'
 ];
 
+export type LaunchProgress =
+  | { action: 'selectDevice' }
+  | { action: 'connectDevice'; name: string }
+  | { action: 'download'; name: string }
+  | { action: 'upload'; name: string }
+  | { action: 'skip'; name: string }
+  | { action: 'startShell' }
+  | { action: 'installController' }
+  | { action: 'openController' };
+
+export type LaunchProgressCallback = (progress: LaunchProgress) => void;
+
 export function supported() {
   return Boolean(AdbDaemonWebUsbDeviceManager.BROWSER);
 }
 
-export async function launchShell() {
+export async function launchShell(report: LaunchProgressCallback = () => {}) {
   const manager = AdbDaemonWebUsbDeviceManager.BROWSER;
   if (!manager) {
     throw new Error('WebUSB ADB is not supported');
   }
+  report({ action: 'selectDevice' });
   const selected = await manager.requestDevice();
   if (!selected) {
     throw new Error('No device selected');
   }
+  report({ action: 'connectDevice', name: selected.serial });
   const adb = await connect(selected);
   try {
-    await push(adb, '/silent-shell.apk', devicePath);
-    await pushOcrRuntime(adb);
+    await push(adb, '/silent-shell.apk', devicePath, 'silent-shell.apk', report);
+    await pushOcrRuntime(adb, report);
+    report({ action: 'startShell' });
     await shell(adb, startCommand());
+    await push(adb, '/controller-app.apk', controllerPath, 'controller-app.apk', report);
+    report({ action: 'installController' });
+    await shell(adb, installControllerCommand());
+    report({ action: 'openController' });
+    await shell(adb, openControllerCommand());
   } finally {
     await adb.close();
   }
@@ -54,11 +76,13 @@ async function connect(selected: AdbDaemonWebUsbDevice) {
   return new Adb(transport);
 }
 
-async function push(adb: Adb, url: string, path: string) {
+async function push(adb: Adb, url: string, path: string, name: string, report: LaunchProgressCallback) {
+  report({ action: 'download', name });
   const response = await fetch(url);
   if (!response.ok || !response.body) {
     throw new Error(`download failed: ${response.status}`);
   }
+  report({ action: 'upload', name });
   const sync = await adb.sync();
   try {
     await sync.write({
@@ -73,22 +97,25 @@ async function push(adb: Adb, url: string, path: string) {
   }
 }
 
-async function pushOcrRuntime(adb: Adb) {
+async function pushOcrRuntime(adb: Adb, report: LaunchProgressCallback) {
   await shell(adb, `mkdir -p ${quote(ocrRoot)}`);
   for (const file of ocrFiles) {
-    await pushOptional(adb, `/ocr/${file}`, `${ocrRoot}/${file}`);
+    await pushOptional(adb, `/ocr/${file}`, `${ocrRoot}/${file}`, `ocr/${file}`, report);
   }
 }
 
-async function pushOptional(adb: Adb, url: string, path: string) {
+async function pushOptional(adb: Adb, url: string, path: string, name: string, report: LaunchProgressCallback) {
+  report({ action: 'download', name });
   const response = await fetch(url);
   if (response.status === 404) {
+    report({ action: 'skip', name });
     return;
   }
   if (!response.ok || !response.body) {
     throw new Error(`download failed: ${response.status}`);
   }
   await shell(adb, `mkdir -p ${quote(parentPath(path))}`);
+  report({ action: 'upload', name });
   const sync = await adb.sync();
   try {
     await sync.write({
@@ -123,6 +150,14 @@ function startCommand() {
   const env = `CLASSPATH=${quote(devicePath)}`;
   const main = 'app_process /system/bin com.silentauto.shell.Main --port=43110';
   return `${killPrevious}; ${env} nohup setsid ${main} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
+}
+
+function installControllerCommand() {
+  return `pm install -r -t -d ${quote(controllerPath)}`;
+}
+
+function openControllerCommand() {
+  return `am start -n ${quote(controllerComponent)}`;
 }
 
 function parentPath(path: string) {

@@ -1,14 +1,21 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     "allowJs": true,
+    "allowSyntheticDefaultImports": true,
     "checkJs": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
+    "target": "ES2022",
+    "types": ["svelte"],
+    "useDefineForClassFields": true,
     "moduleResolution": "bundler"
-  }
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
 }
