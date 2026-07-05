@@ -52,11 +52,11 @@ export async function launchShell(report: LaunchProgressCallback = () => {}) {
   report({ action: 'connectDevice', name: selected.serial });
   const adb = await connect(selected);
   try {
-    await push(adb, '/silent-shell.apk', devicePath, 'silent-shell.apk', report);
+    await push(adb, assetUrl('silent-shell.apk'), devicePath, 'silent-shell.apk', report);
     await pushOcrRuntime(adb, report);
     report({ action: 'startShell' });
     await shell(adb, startCommand());
-    await push(adb, '/controller-app.apk', controllerPath, 'controller-app.apk', report);
+    await push(adb, assetUrl('controller-app.apk'), controllerPath, 'controller-app.apk', report);
     report({ action: 'installController' });
     await shell(adb, installControllerCommand());
     report({ action: 'openController' });
@@ -100,7 +100,8 @@ async function push(adb: Adb, url: string, path: string, name: string, report: L
 async function pushOcrRuntime(adb: Adb, report: LaunchProgressCallback) {
   await shell(adb, `mkdir -p ${quote(ocrRoot)}`);
   for (const file of ocrFiles) {
-    await pushOptional(adb, `/ocr/${file}`, `${ocrRoot}/${file}`, `ocr/${file}`, report);
+    const name = `ocr/${file}`;
+    await pushOptional(adb, assetUrl(name), `${ocrRoot}/${file}`, name, report);
   }
 }
 
@@ -170,4 +171,9 @@ function parentPath(path: string) {
 
 function quote(value: string) {
   return `'${(value || '').replace(/'/g, `'\\''`)}'`;
+}
+
+function assetUrl(path: string) {
+  const base = new URL(import.meta.env.BASE_URL || './', window.location.href);
+  return new URL(path, base).toString();
 }
