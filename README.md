@@ -2,13 +2,13 @@
 
 English | [中文](README.zh-CN.md)
 
-ShadowAuto is an Android background silent automation prototype. It runs an AI-driven shell process through `adb shell` and `app_process`, creates an isolated VirtualDisplay, observes UI state, injects input events into that virtual display, and streams progress plus screen frames back to the Android controller app.
+ShadowAuto is an Android background silent automation prototype. It runs an AI-driven shell process through `adb shell` and `app_process`, creates an isolated VirtualDisplay, observes UI state, injects input events into that virtual display, and streams progress plus an H.264 virtual screen feed back to the Android controller app.
 
 The Chinese product name is **隐控**.
 
 ## Project Layout
 
-- `android-shell`: shell-side automation process started by `app_process`. It owns VirtualDisplay creation, app launching, UiAutomation dumps, input injection, clipboard operations, AI tool-call loop, JSON-RPC, logs, and frame streaming.
+- `android-shell`: shell-side automation process started by `app_process`. It owns VirtualDisplay creation, app launching, UiAutomation dumps, input injection, clipboard operations, AI tool-call loop, JSON-RPC, logs, and H.264 virtual screen streaming.
 - `controller-app`: Android app used to configure the model, enter automation goals, watch the virtual screen, read progress logs, start tasks, and stop one or all tasks.
 - `web-launcher`: Svelte + TangoADB WebUSB launcher. It shows one launch button, lets the user select a device in the browser, uploads the shell APK, kills the previous shell process, and starts `app_process`.
 - `android-stubs`: compile-only Android hidden API stubs used by the shell module.
@@ -32,10 +32,10 @@ Build the shell and controller app:
 ./gradlew :android-shell:assembleDebug :controller-app:assembleDebug
 ```
 
-Copy the latest shell APK into the web launcher static directory:
+Sync the latest shell APK and OCR runtime files into the web launcher static directory:
 
 ```sh
-cp android-shell/build/outputs/apk/debug/android-shell-debug.apk web-launcher/static/silent-shell.apk
+./gradlew :android-shell:syncWebLauncherArtifacts
 ```
 
 Install the controller app:
@@ -65,9 +65,15 @@ adb kill-server
 ### Option 2: Manual ADB
 
 ```sh
-adb push android-shell/build/outputs/apk/debug/android-shell-debug.apk /data/local/tmp/silent-shell.apk
+./gradlew :android-shell:syncWebLauncherArtifacts
+adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
+adb shell "rm -rf /data/local/tmp/shadowauto/ocr && mkdir -p /data/local/tmp/shadowauto/ocr"
+adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
+adb shell "if [ -f /data/local/tmp/silent-auto.pid ]; then kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data/local/tmp/silent-auto.pid; fi"
 adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup setsid app_process /system/bin com.silentauto.shell.Main --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
 ```
+
+The OCR files are required for the `get_screen_ocr` tool. If you only push `silent-shell.apk`, normal automation can start, but OCR fallback will fail when the target page has no accessibility nodes.
 
 View shell logs:
 
@@ -103,14 +109,14 @@ ShadowAuto uses a shell-owned ReAct-style automation loop:
 5. Tool calls perform real UI operations: dump UI layout, tap targets, tap coordinates, focus inputs, input text, select all, delete, paste clipboard, scroll, drag, press Back, press Enter/Search, wait, or finish.
 6. UiAutomation observes the UI tree for the virtual display. The shell can return a compact actionable layout or a full layout dump.
 7. InputManager injects touch and key events into the target display instead of the main phone display.
-8. Screen frames and progress logs are streamed back to the Android app in real time through local JSON-RPC events.
+8. The VirtualDisplay renders into a MediaCodec input surface. The shell streams H.264 config and samples to the Android app, which decodes them into a TextureView; progress logs are sent through the same local JSON-RPC event channel.
 9. The loop repeats until the model calls `finish`, the user stops the task, or an error occurs.
 
 This architecture keeps the automated app off the main display while still allowing the user to monitor progress from the controller app.
 
 ## Paddle Lite Offline OCR
 
-The `paddler-ocr` module contains the optional PaddleOCR Android integration for visual fallback on self-rendered or accessibility-opaque pages. The shell process calls this module directly; the controller app does not contain OCR code. The default build does not package OCR models or native libraries. Enable it with:
+The `paddler-ocr` module contains the PaddleOCR Android integration for visual fallback on self-rendered or accessibility-opaque pages. The shell process calls this module directly; the controller app does not contain OCR code. OCR is enabled by default; build or copy its runtime files with:
 
 ```sh
 ./gradlew :paddler-ocr:preparePaddleLiteOcr

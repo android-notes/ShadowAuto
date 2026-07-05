@@ -3,19 +3,19 @@ package com.silentauto.controller;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Base64;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
+import android.view.TextureView;
+
+import org.json.JSONObject;
 
 final class AutomationTaskView {
     interface Listener {
@@ -31,15 +31,16 @@ final class AutomationTaskView {
     private final View view;
     private final EditText goal;
     private final FrameLayout screenBox;
-    private final ImageView screen;
+    private final TextureView screen;
     private final TextView log;
     private final ScrollView logScroll;
     private final Button run;
     private final Button stop;
 
-    private Bitmap latestFrame;
+    private H264VideoDecoder screenDecoder;
     private AlertDialog screenDialog;
-    private ImageView dialogScreen;
+    private H264VideoDecoder dialogDecoder;
+    private VideoConfig videoConfig;
 
     AutomationTaskView(Activity activity, Handler main, String taskId, Listener listener) {
         this.activity = activity;
@@ -49,11 +50,13 @@ final class AutomationTaskView {
         view = activity.getLayoutInflater().inflate(R.layout.item_task, null, false);
         goal = view.findViewById(R.id.taskGoal);
         screenBox = view.findViewById(R.id.screenBox);
-        screen = view.findViewById(R.id.screenImage);
+        screen = view.findViewById(R.id.screenTexture);
+        screen.setOpaque(true);
         log = view.findViewById(R.id.logText);
         logScroll = view.findViewById(R.id.logScroll);
         run = view.findViewById(R.id.runButton);
         stop = view.findViewById(R.id.stopButton);
+        screenDecoder = new H264VideoDecoder(screen, main);
         UiUtils.clearButtonTint(run, stop);
         screenBox.setOnClickListener(v -> showScreenDialog());
         run.setOnClickListener(v -> start());
@@ -81,6 +84,7 @@ final class AutomationTaskView {
         }
         showLiveUi(true);
         setRunning(true);
+        resetVideo();
         log.setText("");
         append(activity.getString(R.string.starting));
         listener.onTaskStart(this);
@@ -103,24 +107,30 @@ final class AutomationTaskView {
         });
     }
 
-    void showFrame(String base64) {
-        if (base64 == null || base64.isEmpty()) {
-            return;
-        }
-        try {
-            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-            if (bitmap != null) {
-                activity.runOnUiThread(() -> {
-                    latestFrame = bitmap;
-                    screen.setImageBitmap(bitmap);
-                    if (dialogScreen != null) {
-                        dialogScreen.setImageBitmap(bitmap);
-                    }
-                });
+    void showVideoConfig(JSONObject params) {
+        activity.runOnUiThread(() -> {
+            videoConfig = VideoConfig.from(params);
+            if (screenDecoder != null) {
+                videoConfig.apply(screenDecoder);
             }
-        } catch (Exception ignored) {
-        }
+            if (dialogDecoder != null) {
+                videoConfig.apply(dialogDecoder);
+            }
+        });
+    }
+
+    void showVideoSample(JSONObject params) {
+        String data = params.optString("data");
+        long ptsUs = params.optLong("ptsUs");
+        int flags = params.optInt("flags");
+        activity.runOnUiThread(() -> {
+            if (screenDecoder != null) {
+                screenDecoder.queueSample(data, ptsUs, flags);
+            }
+            if (dialogDecoder != null) {
+                dialogDecoder.queueSample(data, ptsUs, flags);
+            }
+        });
     }
 
     void showLiveUi(boolean show) {
@@ -159,18 +169,23 @@ final class AutomationTaskView {
         View holder = activity.getLayoutInflater().inflate(R.layout.dialog_screen_preview, null, false);
         int previewHeight = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.66f);
         holder.setMinimumHeight(previewHeight);
-        ImageView preview = holder.findViewById(R.id.dialogScreenImage);
-        if (latestFrame != null) {
-            preview.setImageBitmap(latestFrame);
+        TextureView preview = holder.findViewById(R.id.dialogScreenTexture);
+        preview.setOpaque(true);
+        H264VideoDecoder decoder = new H264VideoDecoder(preview, main);
+        dialogDecoder = decoder;
+        if (videoConfig != null) {
+            videoConfig.apply(decoder);
         }
-        dialogScreen = preview;
         screenDialog = new AlertDialog.Builder(activity)
                 .setTitle(activity.getString(R.string.screen_preview_title))
                 .setView(holder)
                 .setPositiveButton(activity.getString(R.string.close), null)
                 .create();
         screenDialog.setOnDismissListener(dialog -> {
-            dialogScreen = null;
+            if (dialogDecoder != null) {
+                dialogDecoder.release();
+            }
+            dialogDecoder = null;
             screenDialog = null;
         });
         screenDialog.setOnShowListener(dialog -> {
@@ -182,5 +197,47 @@ final class AutomationTaskView {
             }
         });
         screenDialog.show();
+    }
+
+    private void resetVideo() {
+        videoConfig = null;
+        if (screenDecoder != null) {
+            screenDecoder.release();
+        }
+        if (dialogDecoder != null) {
+            dialogDecoder.release();
+            dialogDecoder = null;
+        }
+        screenDecoder = new H264VideoDecoder(screen, main);
+    }
+
+    private static final class VideoConfig {
+        final String mime;
+        final int width;
+        final int height;
+        final String csd0;
+        final String csd1;
+
+        private VideoConfig(String mime, int width, int height, String csd0, String csd1) {
+            this.mime = mime;
+            this.width = width;
+            this.height = height;
+            this.csd0 = csd0;
+            this.csd1 = csd1;
+        }
+
+        static VideoConfig from(JSONObject params) {
+            return new VideoConfig(
+                    params.optString("mime", "video/avc"),
+                    params.optInt("width"),
+                    params.optInt("height"),
+                    params.optString("csd0"),
+                    params.optString("csd1")
+            );
+        }
+
+        void apply(H264VideoDecoder decoder) {
+            decoder.configure(mime, width, height, csd0, csd1);
+        }
     }
 }

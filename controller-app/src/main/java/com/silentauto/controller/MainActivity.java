@@ -257,8 +257,13 @@ public final class MainActivity extends Activity implements AutomationTaskView.L
             if (task == null) {
                 return;
             }
-            if ("frame".equals(params.optString("type"))) {
-                task.showFrame(params.optString("data"));
+            String type = params.optString("type");
+            if ("video.config".equals(type)) {
+                task.showVideoConfig(params);
+            } else if ("video.sample".equals(type)) {
+                task.showVideoSample(params);
+            } else if ("frame".equals(type)) {
+                return;
             } else {
                 task.append(params.optString("message"));
             }

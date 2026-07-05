@@ -23,6 +23,10 @@ public final class Main {
         }
         killExistingShellProcesses();
         ShellContext.init();
+        if (hasFlag(args, "--video-test")) {
+            VideoTest.run(logs);
+            return;
+        }
         AutomationEngine engine = new AutomationEngine(config, logs);
         logs.info("silent shell listening on 127.0.0.1:" + config.port);
         new RpcServer(config.port, engine, logs).run();
@@ -58,7 +62,7 @@ public final class Main {
                 continue;
             }
             String commandLine = readCommandLine(new File(entry, "cmdline"));
-            if (commandLine.isEmpty() || !commandLine.contains(PROCESS_MARKER)) {
+            if (commandLine.isEmpty() || !isShellMainProcess(commandLine)) {
                 continue;
             }
             try {
@@ -66,6 +70,14 @@ public final class Main {
             } catch (Throwable ignored) {
             }
         }
+    }
+
+    private static boolean isShellMainProcess(String commandLine) {
+        if (!commandLine.contains(PROCESS_MARKER)) {
+            return false;
+        }
+        return commandLine.startsWith("app_process")
+                || commandLine.startsWith("/system/bin/app_process");
     }
 
     private static boolean isPid(String value) {

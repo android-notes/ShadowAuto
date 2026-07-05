@@ -6,10 +6,8 @@
     android:background="@color/screen"
     android:padding="8dp">
 
-    <ImageView
-        android:id="@+id/dialogScreenImage"
+    <TextureView
+        android:id="@+id/dialogScreenTexture"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/screen"
-        android:scaleType="fitCenter" />
+        android:layout_height="match_parent" />
 </FrameLayout>

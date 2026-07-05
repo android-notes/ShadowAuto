@@ -2,11 +2,11 @@
 
 [English](README.md) | 中文
 
-隐控 ShadowAuto 是一个 Android 后台静默自动化原型。它通过 `adb shell` 和 `app_process` 启动 AI 驱动的 shell 进程，在独立 VirtualDisplay 中运行目标应用，获取 UI 状态，向该虚拟屏注入输入事件，并把执行进度和虚拟投屏实时回传到 Android 控制端。
+隐控 ShadowAuto 是一个 Android 后台静默自动化原型。它通过 `adb shell` 和 `app_process` 启动 AI 驱动的 shell 进程，在独立 VirtualDisplay 中运行目标应用，获取 UI 状态，向该虚拟屏注入输入事件，并把执行进度和 H.264 虚拟投屏实时回传到 Android 控制端。
 
 ## 工程结构
 
-- `android-shell`：通过 `app_process` 启动的 shell 自动化进程。负责创建 VirtualDisplay、启动应用、获取 UiAutomation 布局、注入输入、操作剪贴板、执行 AI tool-call 循环、提供 JSON-RPC、输出日志和推送投屏帧。
+- `android-shell`：通过 `app_process` 启动的 shell 自动化进程。负责创建 VirtualDisplay、启动应用、获取 UiAutomation 布局、注入输入、操作剪贴板、执行 AI tool-call 循环、提供 JSON-RPC、输出日志和推送 H.264 虚拟投屏。
 - `controller-app`：Android 控制端 App。用于配置大模型、输入任务目标、查看虚拟投屏、查看进度日志、启动任务、停止当前任务或停止所有任务。
 - `web-launcher`：Svelte + TangoADB WebUSB 启动器。页面只展示一个启动按钮，点击后选择设备、上传 shell APK、杀死旧 shell 进程并启动新的 `app_process`。
 - `android-stubs`：shell 模块编译时使用的 Android hidden API stub，仅用于编译。
@@ -30,10 +30,10 @@
 ./gradlew :android-shell:assembleDebug :controller-app:assembleDebug
 ```
 
-把最新 shell APK 复制到 Web 启动器静态目录：
+把最新 shell APK 和 OCR 运行时文件同步到 Web 启动器静态目录：
 
 ```sh
-cp android-shell/build/outputs/apk/debug/android-shell-debug.apk web-launcher/static/silent-shell.apk
+./gradlew :android-shell:syncWebLauncherArtifacts
 ```
 
 安装控制端 App：
@@ -63,10 +63,15 @@ adb kill-server
 ### 方式二：手动 ADB
 
 ```sh
-adb push android-shell/build/outputs/apk/debug/android-shell-debug.apk /data/local/tmp/silent-shell.apk
+./gradlew :android-shell:syncWebLauncherArtifacts
+adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
+adb shell "rm -rf /data/local/tmp/shadowauto/ocr && mkdir -p /data/local/tmp/shadowauto/ocr"
+adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
 adb shell "if [ -f /data/local/tmp/silent-auto.pid ]; then kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data/local/tmp/silent-auto.pid; fi"
 adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup setsid app_process /system/bin com.silentauto.shell.Main --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
 ```
+
+OCR 文件是 `get_screen_ocr` tool call 必需的。只推 `silent-shell.apk` 时，普通自动化可以启动，但遇到无障碍节点缺失的页面时 OCR 兜底会失败。
 
 查看 shell 日志：
 
@@ -102,14 +107,14 @@ adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data
 5. tool call 会执行真实 UI 操作：获取布局、点击目标节点、点击坐标、聚焦输入框、输入文本、全选、删除、粘贴、滚动、拖拽、返回、回车/搜索、等待或完成任务。
 6. UiAutomation 负责读取虚拟显示屏上的 UI 树。shell 可以返回简化后的可操作布局，也可以返回完整布局。
 7. InputManager 把触摸和按键事件注入到目标 display，而不是手机主屏幕。
-8. 虚拟屏画面和进度日志通过本机 JSON-RPC 事件实时推送到 Android App。
+8. VirtualDisplay 直接渲染到 MediaCodec 输入 Surface。shell 推送 H.264 配置和 sample，Android App 解码到 TextureView；进度日志通过同一本机 JSON-RPC 事件通道发送。
 9. 这个循环会持续执行，直到模型调用 `finish`、用户停止任务，或发生错误。
 
 这种架构可以让目标应用在虚拟屏里运行，用户则在控制端 App 中观察进度，不需要把自动化操作暴露在主屏幕上。
 
 ## Paddle Lite 离线 OCR
 
-`paddler-ocr` 模块负责 PaddleOCR Android 集成，用于对不可访问、自绘页面做视觉兜底。shell 进程会直接调用该模块，controller-app 不再包含 OCR 代码。默认构建不打包 OCR 模型和 native 库；需要启用时执行：
+`paddler-ocr` 模块负责 PaddleOCR Android 集成，用于对不可访问、自绘页面做视觉兜底。shell 进程会直接调用该模块，controller-app 不再包含 OCR 代码。OCR 默认开启；构建或复制运行时文件执行：
 
 ```sh
 ./gradlew :paddler-ocr:preparePaddleLiteOcr

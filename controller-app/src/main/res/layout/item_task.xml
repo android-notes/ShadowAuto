@@ -70,12 +70,10 @@
         android:focusable="true"
         android:visibility="gone">
 
-        <ImageView
-            android:id="@+id/screenImage"
+        <TextureView
+            android:id="@+id/screenTexture"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/screen"
-            android:scaleType="fitCenter" />
+            android:layout_height="match_parent" />
     </FrameLayout>
 
     <ScrollView

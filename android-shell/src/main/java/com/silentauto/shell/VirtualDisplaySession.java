@@ -1,10 +1,13 @@
 package com.silentauto.shell;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.media.Image;
 import android.media.ImageReader;
+import android.os.SystemClock;
 import android.view.Surface;
 
 import java.lang.reflect.Constructor;
@@ -15,19 +18,21 @@ final class VirtualDisplaySession {
     final int width;
     final int height;
     final int dpi;
-    final ImageReader imageReader;
-    private final Surface surface;
+    private final ImageReader captureReader;
+    private final Surface captureSurface;
+    private Surface outputSurface;
     private final VirtualDisplay display;
     private final WindowManagerBridge windowManager;
     private final int previousImePolicy;
     private final boolean localImeEnabled;
 
-    private VirtualDisplaySession(int width, int height, int dpi, ImageReader imageReader, Surface surface, VirtualDisplay display) {
+    private VirtualDisplaySession(int width, int height, int dpi, ImageReader captureReader, Surface outputSurface, VirtualDisplay display) {
         this.width = width;
         this.height = height;
         this.dpi = dpi;
-        this.imageReader = imageReader;
-        this.surface = surface;
+        this.captureReader = captureReader;
+        this.captureSurface = captureReader.getSurface();
+        this.outputSurface = outputSurface;
         this.display = display;
         this.displayId = display.getDisplay().getDisplayId();
         this.windowManager = new WindowManagerBridge();
@@ -39,21 +44,56 @@ final class VirtualDisplaySession {
         return localImeEnabled;
     }
 
-    static VirtualDisplaySession create(int width, int height, int dpi) {
+    static VirtualDisplaySession create(int width, int height, int dpi, Surface outputSurface) {
         DisplayManager manager = displayManager();
-        ImageReader imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
-        Surface surface = imageReader.getSurface();
+        ImageReader captureReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
         int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
                 | hiddenFlag("VIRTUAL_DISPLAY_FLAG_SUPPORTS_TOUCH")
                 | hiddenFlag("VIRTUAL_DISPLAY_FLAG_OWN_FOCUS")
                 | hiddenFlag("VIRTUAL_DISPLAY_FLAG_TRUSTED");
-        VirtualDisplay display = manager.createVirtualDisplay("ShadowAuto", width, height, dpi, surface, flags);
+        VirtualDisplay display = manager.createVirtualDisplay("ShadowAuto", width, height, dpi, outputSurface, flags);
         if (display == null || display.getDisplay() == null) {
             throw new IllegalStateException("createVirtualDisplay failed");
         }
-        return new VirtualDisplaySession(width, height, dpi, imageReader, surface, display);
+        return new VirtualDisplaySession(width, height, dpi, captureReader, outputSurface, display);
+    }
+
+    synchronized Bitmap captureBitmap(int retries, long delayMs) {
+        Surface restoreSurface = outputSurface;
+        Image image = null;
+        try {
+            drainCaptureReader();
+            display.setSurface(captureSurface);
+            for (int i = 0; i <= retries; i++) {
+                SystemClock.sleep(delayMs);
+                image = captureReader.acquireLatestImage();
+                if (image != null) {
+                    return ScreenCapture.bitmapFromImage(image);
+                }
+            }
+            return null;
+        } finally {
+            if (image != null) {
+                image.close();
+            }
+            try {
+                display.setSurface(restoreSurface);
+                outputSurface = restoreSurface;
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private void drainCaptureReader() {
+        while (true) {
+            Image image = captureReader.acquireLatestImage();
+            if (image == null) {
+                return;
+            }
+            image.close();
+        }
     }
 
     private static DisplayManager displayManager() {
@@ -78,11 +118,11 @@ final class VirtualDisplaySession {
         } catch (Throwable ignored) {
         }
         try {
-            surface.release();
+            captureSurface.release();
         } catch (Throwable ignored) {
         }
         try {
-            imageReader.close();
+            captureReader.close();
         } catch (Throwable ignored) {
         }
     }

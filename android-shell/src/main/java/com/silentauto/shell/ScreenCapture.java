@@ -2,7 +2,6 @@ package com.silentauto.shell;
 
 import android.graphics.Bitmap;
 import android.media.Image;
-import android.os.SystemClock;
 
 import java.nio.ByteBuffer;
 
@@ -11,21 +10,7 @@ final class ScreenCapture {
     }
 
     static Bitmap latestBitmap(VirtualDisplaySession display, int retries, long delayMs) {
-        Image image = null;
-        try {
-            for (int i = 0; i <= retries; i++) {
-                image = display.imageReader.acquireLatestImage();
-                if (image != null) {
-                    return bitmapFromImage(image);
-                }
-                SystemClock.sleep(delayMs);
-            }
-            return null;
-        } finally {
-            if (image != null) {
-                image.close();
-            }
-        }
+        return display.captureBitmap(retries, delayMs);
     }
 
     static Bitmap bitmapFromImage(Image image) {

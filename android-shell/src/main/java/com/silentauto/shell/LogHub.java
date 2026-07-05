@@ -1,9 +1,12 @@
 package com.silentauto.shell;
 
+import android.media.MediaFormat;
+import android.util.Base64;
 import android.util.Log;
 
 import com.google.gson.JsonObject;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -70,21 +73,29 @@ final class LogHub {
         Log.i(TAG, line);
     }
 
-    void frame(int displayId, int width, int height, String jpegBase64) {
-        frame(null, displayId, width, height, jpegBase64);
-    }
-
-    void frame(String taskId, int displayId, int width, int height, String jpegBase64) {
+    void videoConfig(String taskId, MediaFormat format) {
         JsonObject params = new JsonObject();
         if (taskId != null && !taskId.isEmpty()) {
             params.addProperty("taskId", taskId);
         }
-        params.addProperty("type", "frame");
-        params.addProperty("displayId", displayId);
-        params.addProperty("width", width);
-        params.addProperty("height", height);
-        params.addProperty("format", "jpeg");
-        params.addProperty("data", jpegBase64);
+        params.addProperty("type", "video.config");
+        params.addProperty("mime", format.getString(MediaFormat.KEY_MIME));
+        params.addProperty("width", format.getInteger(MediaFormat.KEY_WIDTH));
+        params.addProperty("height", format.getInteger(MediaFormat.KEY_HEIGHT));
+        addBuffer(params, format, "csd-0", "csd0");
+        addBuffer(params, format, "csd-1", "csd1");
+        emit(params);
+    }
+
+    void videoSample(String taskId, long ptsUs, int flags, String h264Base64) {
+        JsonObject params = new JsonObject();
+        if (taskId != null && !taskId.isEmpty()) {
+            params.addProperty("taskId", taskId);
+        }
+        params.addProperty("type", "video.sample");
+        params.addProperty("ptsUs", ptsUs);
+        params.addProperty("flags", flags);
+        params.addProperty("data", h264Base64);
         emit(params);
     }
 
@@ -120,6 +131,23 @@ final class LogHub {
         event.add("params", params);
         for (Sink sink : sinks) {
             sink.send(event);
+        }
+    }
+
+    private static void addBuffer(JsonObject params, MediaFormat format, String key, String name) {
+        try {
+            if (!format.containsKey(key)) {
+                return;
+            }
+            ByteBuffer buffer = format.getByteBuffer(key);
+            if (buffer == null) {
+                return;
+            }
+            ByteBuffer copy = buffer.duplicate();
+            byte[] bytes = new byte[copy.remaining()];
+            copy.get(bytes);
+            params.addProperty(name, Base64.encodeToString(bytes, Base64.NO_WRAP));
+        } catch (Throwable ignored) {
         }
     }
 }

@@ -147,9 +147,9 @@ final class AutomationEngine {
                 throw new IllegalStateException("AI did not choose an app package");
             }
 
-            task.display = VirtualDisplaySession.create(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_DPI);
-            task.frameStreamer = new FrameStreamer(task.display, logs, task.taskId);
-            task.frameStreamer.start();
+            task.videoStreamer = new VideoStreamer(logs, task.taskId, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+            task.display = VirtualDisplaySession.create(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_DPI, task.videoStreamer.inputSurface());
+            task.videoStreamer.start();
             logs.task(task.taskId, "virtual display created: " + task.display.displayId);
             logs.task(task.taskId, "virtual display local IME " + (task.display.localImeEnabled() ? "enabled" : "unavailable"));
             appCatalog.launchPackage(task.taskId, app.packageName, task.display.displayId);
@@ -880,9 +880,9 @@ final class AutomationEngine {
     }
 
     private void releaseTask(TaskState task) {
-        if (task.frameStreamer != null) {
-            task.frameStreamer.stop();
-            task.frameStreamer = null;
+        if (task.videoStreamer != null) {
+            task.videoStreamer.stop();
+            task.videoStreamer = null;
         }
         if (task.display != null) {
             task.display.release();
@@ -934,7 +934,7 @@ final class AutomationEngine {
         volatile String state = "running";
         volatile Future<?> future;
         volatile VirtualDisplaySession display;
-        volatile FrameStreamer frameStreamer;
+        volatile VideoStreamer videoStreamer;
         volatile AiClient ai;
         boolean completed;
         String searchText = "";
