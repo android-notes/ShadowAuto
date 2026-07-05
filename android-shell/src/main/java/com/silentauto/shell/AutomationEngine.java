@@ -27,9 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class AutomationEngine {
     private static final int MAX_STEPS = 25;
     private static final int MAX_OBSERVATION_TOOL_CALLS = 4;
-    private static final int DISPLAY_WIDTH = 720;
-    private static final int DISPLAY_HEIGHT = 1280;
-    private static final int DISPLAY_DPI = 320;
     private static final int MAX_UI_CHARS = (int) (1_000_000 * 0.6);
     private static final int LOGCAT_LAYOUT_CHUNK = 3500;
     private static final String TOOL_SYSTEM_PROMPT = """
@@ -147,10 +144,11 @@ final class AutomationEngine {
                 throw new IllegalStateException("AI did not choose an app package");
             }
 
-            task.videoStreamer = new VideoStreamer(logs, task.taskId, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-            task.display = VirtualDisplaySession.create(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_DPI, task.videoStreamer.inputSurface());
+            DisplaySpec displaySpec = DisplaySpec.current(logs);
+            task.videoStreamer = new VideoStreamer(logs, task.taskId, displaySpec.width, displaySpec.height);
+            task.display = VirtualDisplaySession.create(task.videoStreamer.width(), task.videoStreamer.height(), displaySpec.dpi, task.videoStreamer.inputSurface());
             task.videoStreamer.start();
-            logs.task(task.taskId, "virtual display created: " + task.display.displayId);
+            logs.task(task.taskId, "virtual display created: " + task.display.displayId + " " + task.display.width + "x" + task.display.height + " dpi=" + task.display.dpi);
             logs.task(task.taskId, "virtual display local IME " + (task.display.localImeEnabled() ? "enabled" : "unavailable"));
             appCatalog.launchPackage(task.taskId, app.packageName, task.display.displayId);
             logs.task(task.taskId, "launched " + app.packageName);
@@ -476,10 +474,10 @@ final class AutomationEngine {
 
     private ActionDecision nextAction(TaskState task, AiClient ai, UiBridge bridge, String goal, String packageName, int step, int displayId, String uiDump) throws Exception {
         String prompt = String.format(Locale.US, """
-                You control an Android app on a 720x1280 virtual display.
+                You control an Android app on a %dx%d virtual display.
                 Rules:
                 1. Call exactly one tool, never answer with prose.
-                2. Coordinates are display-local in the 720x1280 virtual display. Never use preview/screenshot pixels.
+                2. Coordinates are display-local in this %dx%d virtual display. Never use preview/screenshot pixels.
                 3. Prefer tap_target using targetIndex from targets. Use raw tap only when no targetIndex exists, using a node center value.
                 4. Use focus_input before input_text. input_text sets the focused field to the exact value, not an append operation.
                 5. If the field should be empty, use clear_text. If existing text must be replaced, use input_text directly after focus_input.
@@ -500,7 +498,8 @@ final class AutomationEngine {
                 Consecutive waits: %d
                 Last UI stats: windows=%d inputs=%d targets=%d sparseAfterSearch=%d source=%s
                 UI:
-                %s""", goal, packageName, step, safe(task.searchText), safe(task.lastAction), safe(task.lastReason), task.consecutiveWaits,
+                %s""", task.display.width, task.display.height, task.display.width, task.display.height,
+                goal, packageName, step, safe(task.searchText), safe(task.lastAction), safe(task.lastReason), task.consecutiveWaits,
                 task.lastUiWindows, task.lastUiInputs, task.lastUiTargets, task.sparseUiAfterSearch, safe(task.lastUiWindowSource), truncate(uiDump, MAX_UI_CHARS));
         JsonArray messages = new JsonArray();
         messages.add(AiClient.message("system", TOOL_SYSTEM_PROMPT));
@@ -530,7 +529,7 @@ final class AutomationEngine {
                 logs.task(task.taskId, "ocr returned to AI");
             } else {
                 String mode = ActionTools.layoutMode(call.arguments);
-                observation = bridge.dump(displayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, mode);
+                observation = bridge.dump(displayId, task.display.width, task.display.height, mode);
                 logLayoutDump(task.taskId, displayId, mode, observation);
                 logs.task(task.taskId, "layout returned to AI");
             }
@@ -543,8 +542,8 @@ final class AutomationEngine {
     private synchronized String screenOcrJson(TaskState task) {
         JsonObject object = new JsonObject();
         object.addProperty("displayId", task.display == null ? -1 : task.display.displayId);
-        object.addProperty("width", task.display == null ? DISPLAY_WIDTH : task.display.width);
-        object.addProperty("height", task.display == null ? DISPLAY_HEIGHT : task.display.height);
+        object.addProperty("width", task.display == null ? DisplaySpec.FALLBACK_WIDTH : task.display.width);
+        object.addProperty("height", task.display == null ? DisplaySpec.FALLBACK_HEIGHT : task.display.height);
         JsonArray array = new JsonArray();
         object.add("results", array);
         Bitmap bitmap = null;

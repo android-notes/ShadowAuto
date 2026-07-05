@@ -21,14 +21,14 @@ final class ActionTools {
         tools.add(tool("tap_target", "Click a UI target by targetIndex from the UI dump targets array. This uses Accessibility ACTION_CLICK first and falls back to the target center.",
                 props(prop("targetIndex", "integer", "targetIndex from the latest UI targets array"), prop("reason", "string", "why this target should be clicked")),
                 required("targetIndex")));
-        tools.add(tool("tap", "Tap display-local coordinates on the 720x1280 virtual display only when no targetIndex exists. Use the target node center field from the UI dump.",
-                props(prop("x", "integer", "display-local x coordinate, 0..719"), prop("y", "integer", "display-local y coordinate, 0..1279"), prop("reason", "string", "why this tap")),
+        tools.add(tool("tap", "Tap display-local coordinates on the current virtual display only when no targetIndex exists. Use the target node center field from the UI dump.",
+                props(prop("x", "integer", "display-local x coordinate in the current UI dump coordinate space"), prop("y", "integer", "display-local y coordinate in the current UI dump coordinate space"), prop("reason", "string", "why this tap")),
                 required("x", "y")));
         tools.add(tool("long_press", "Long press display-local coordinates. Use only for context menus, selecting text, dragging handles, or UI that explicitly needs press-and-hold.",
-                props(prop("x", "integer", "display-local x coordinate, 0..719"), prop("y", "integer", "display-local y coordinate, 0..1279"), prop("durationMs", "integer", "optional press duration; use 0 or omit for default"), prop("reason", "string", "why long press is needed")),
+                props(prop("x", "integer", "display-local x coordinate in the current UI dump coordinate space"), prop("y", "integer", "display-local y coordinate in the current UI dump coordinate space"), prop("durationMs", "integer", "optional press duration; use 0 or omit for default"), prop("reason", "string", "why long press is needed")),
                 required("x", "y")));
         tools.add(tool("drag", "Drag from one display-local point to another. Use for sliders, maps, carousels, or drag handles. For normal page scrolling prefer scroll_ui.",
-                props(prop("startX", "integer", "start x, 0..719"), prop("startY", "integer", "start y, 0..1279"), prop("endX", "integer", "end x, 0..719"), prop("endY", "integer", "end y, 0..1279"), prop("durationMs", "integer", "optional drag duration; use 0 or omit for default"), prop("reason", "string", "why drag is needed")),
+                props(prop("startX", "integer", "display-local start x"), prop("startY", "integer", "display-local start y"), prop("endX", "integer", "display-local end x"), prop("endY", "integer", "display-local end y"), prop("durationMs", "integer", "optional drag duration; use 0 or omit for default"), prop("reason", "string", "why drag is needed")),
                 required("startX", "startY", "endX", "endY")));
         tools.add(tool("scroll_ui", "Scroll the current UI. direction is content direction: down reveals lower content, up reveals upper content, right reveals content to the right, left reveals content to the left.",
                 props(propEnum("direction", "content direction, not finger direction", "up", "down", "left", "right"), prop("distance", "integer", "optional display-local pixels; use 0 or omit for default"), prop("reason", "string", "why scrolling is needed")),

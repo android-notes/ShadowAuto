@@ -28,10 +28,11 @@ final class VideoTest {
         VirtualDisplaySession display = null;
         try {
             logs.logcat(null, "video_test_begin");
-            streamer = new VideoStreamer(logs, "video-test", 720, 1280);
-            display = VirtualDisplaySession.create(720, 1280, 320, streamer.inputSurface());
+            DisplaySpec spec = DisplaySpec.current(logs);
+            streamer = new VideoStreamer(logs, "video-test", spec.width, spec.height);
+            display = VirtualDisplaySession.create(streamer.width(), streamer.height(), spec.dpi, streamer.inputSurface());
             streamer.start();
-            logs.logcat(null, "video_test_display=" + display.displayId);
+            logs.logcat(null, "video_test_display=" + display.displayId + " size=" + display.width + "x" + display.height + " dpi=" + display.dpi);
             try {
                 new AppCatalog(logs).launchPackage("video-test", "com.android.settings", display.displayId);
             } catch (Throwable e) {
