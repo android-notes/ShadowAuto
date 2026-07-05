@@ -2,11 +2,29 @@
 
 [English](README.md) | 中文
 
-隐控 ShadowAuto 是一个 Android 后台静默自动化原型。它通过 `adb shell` 和 `app_process` 启动 AI 驱动的 shell 进程，在独立 VirtualDisplay 中运行目标应用，获取 UI 状态，向该虚拟屏注入输入事件，并把执行进度和 H.264 虚拟投屏实时回传到 Android 控制端。
+隐控 ShadowAuto 是一个类似豆包手机的 Android 开源原型，支持任意 Android 10 及以上设备，同样可以实现 Android 手机后台静默自动化。它通过 `adb shell` 和 `app_process` 启动 AI 驱动的 shell 进程，把真实 App 打开在独立 VirtualDisplay 中运行；用户主屏幕可以继续正常使用，自动化任务则在后台虚拟屏里静默执行。
+
+ShadowAuto 的重点不是简单脚本点击，而是让 AI 具备类似手机助理的屏幕理解和操作能力：shell 进程可以读取虚拟屏上的 UiAutomation UI 节点树，也可以在无障碍节点缺失、自绘页面或复杂业务页面中调用离线 OCR 读取屏幕文字和坐标，再通过 InputManager 把触摸、按键和输入事件注入到指定 display。
+
+## 核心能力
+
+- 后台静默自动化：目标 App 运行在 VirtualDisplay 中，不占用实体主屏。
+- AI tool call 操作手机：模型根据用户目标持续调用点击、输入、滚动、返回、搜索、等待和完成等工具。
+- UI 节点读取：通过 UiAutomation 获取指定 display 的完整窗口、节点树、输入框和可点击目标。
+- OCR 视觉兜底：通过 Paddle Lite OCR 识别屏幕文字和坐标，处理无节点、自绘或无障碍不完整页面。
+- 指定 display 输入注入：触摸、按键、剪贴板和 IME 操作都落到虚拟屏，而不是主屏。
+- 实时虚拟投屏：VirtualDisplay 通过 H.264 视频流回传到控制端 App，方便观察后台执行状态。
+- 多任务并行：控制端可以创建多个独立任务页，每个任务维护自己的目标、投屏和进度日志。
+
+## 演示视频
+
+<video src="shadowauto.mp4" controls="controls" style="max-width: 100%;"></video>
+
+如果当前页面不支持直接播放视频，可以打开 [shadowauto.mp4](shadowauto.mp4) 查看。
 
 ## 工程结构
 
-- `android-shell`：通过 `app_process` 启动的 shell 自动化进程。负责创建 VirtualDisplay、启动应用、获取 UiAutomation 布局、注入输入、操作剪贴板、执行 AI tool-call 循环、提供 JSON-RPC、输出日志和推送 H.264 虚拟投屏。
+- `android-shell`：通过 `app_process` 启动的 shell 自动化进程。负责创建 VirtualDisplay、启动应用、读取 UI 节点、调用 OCR、注入输入、操作剪贴板、执行 AI tool-call 循环、提供 JSON-RPC、输出日志和推送 H.264 虚拟投屏。
 - `controller-app`：Android 控制端 App。用于配置大模型、输入任务目标、查看虚拟投屏、查看进度日志、启动任务、停止当前任务或停止所有任务。
 - `web-launcher`：Svelte + TangoADB WebUSB 启动器。页面只展示一个启动按钮，点击后选择设备、上传 shell APK、杀死旧 shell 进程并启动新的 `app_process`。
 - `android-stubs`：shell 模块编译时使用的 Android hidden API stub，仅用于编译。
@@ -14,7 +32,7 @@
 
 ## 环境要求
 
-- Android 10 及以上。
+- 任意 Android 10 及以上设备。
 - 目标设备已开启 ADB 调试。
 - 默认只需要 shell 权限，不需要 root。
 - JDK 17。
@@ -105,10 +123,11 @@ adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data
 3. 控制端 App 通过 `127.0.0.1:43110` 向 shell 发送 JSON-RPC `startTask` 请求，请求中包含用户目标和大模型配置。
 4. shell 请求大模型，让模型根据目标和当前 UI 状态进行推理，并通过 tool call 选择下一步动作。
 5. tool call 会执行真实 UI 操作：获取布局、点击目标节点、点击坐标、聚焦输入框、输入文本、全选、删除、粘贴、滚动、拖拽、返回、回车/搜索、等待或完成任务。
-6. UiAutomation 负责读取虚拟显示屏上的 UI 树。shell 可以返回简化后的可操作布局，也可以返回完整布局。
-7. InputManager 把触摸和按键事件注入到目标 display，而不是手机主屏幕。
-8. VirtualDisplay 直接渲染到 MediaCodec 输入 Surface。shell 推送 H.264 配置和 sample，Android App 解码到 TextureView；进度日志通过同一本机 JSON-RPC 事件通道发送。
-9. 这个循环会持续执行，直到模型调用 `finish`、用户停止任务，或发生错误。
+6. UiAutomation 负责读取虚拟显示屏上的 UI 节点树。shell 可以返回简化后的可操作布局，也可以返回完整布局。
+7. 当 UI 节点为空、错误或不足以决策时，AI 可以调用 `get_screen_ocr`，shell 通过 Paddle Lite OCR 读取屏幕文字、置信度和坐标框。
+8. InputManager 把触摸和按键事件注入到目标 display，而不是手机主屏幕。
+9. VirtualDisplay 直接渲染到 MediaCodec 输入 Surface。shell 推送 H.264 配置和 sample，Android App 解码到 TextureView；进度日志通过同一本机 JSON-RPC 事件通道发送。
+10. 这个循环会持续执行，直到模型调用 `finish`、用户停止任务，或发生错误。
 
 这种架构可以让目标应用在虚拟屏里运行，用户则在控制端 App 中观察进度，不需要把自动化操作暴露在主屏幕上。
 
@@ -145,7 +164,6 @@ shell 只监听本机回环地址：
 
 ## 注意事项和限制
 
-- 这是自动化研究原型，不是生产级助手。
 - 大模型服务商会收到任务目标和自动化所需的 UI 上下文。请不要在不可信模型服务中处理敏感内容。
 - 受 Android 安全限制，部分受保护页面在投屏时可能黑屏，例如支付密码页面。
 - 同时执行多个任务可能会修改剪贴板内容，导致输入失败或文本错乱。
