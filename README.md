@@ -1,0 +1,149 @@
+# ShadowAuto
+
+English | [中文](README.zh-CN.md)
+
+ShadowAuto is an Android background silent automation prototype. It runs an AI-driven shell process through `adb shell` and `app_process`, creates an isolated VirtualDisplay, observes UI state, injects input events into that virtual display, and streams progress plus screen frames back to the Android controller app.
+
+The Chinese product name is **隐控**.
+
+## Project Layout
+
+- `android-shell`: shell-side automation process started by `app_process`. It owns VirtualDisplay creation, app launching, UiAutomation dumps, input injection, clipboard operations, AI tool-call loop, JSON-RPC, logs, and frame streaming.
+- `controller-app`: Android app used to configure the model, enter automation goals, watch the virtual screen, read progress logs, start tasks, and stop one or all tasks.
+- `web-launcher`: Svelte + TangoADB WebUSB launcher. It shows one launch button, lets the user select a device in the browser, uploads the shell APK, kills the previous shell process, and starts `app_process`.
+- `android-stubs`: compile-only Android hidden API stubs used by the shell module.
+- `scripts`: local test helpers.
+
+## Requirements
+
+- Android 10 or later.
+- ADB debugging enabled on the target device.
+- Shell permission is enough; root is not required.
+- JDK 17.
+- Node.js and npm for the web launcher.
+- Chrome or another WebUSB-capable browser for `web-launcher`.
+- An OpenAI-compatible chat-completions endpoint that supports streaming and tool calls.
+
+## Build
+
+Build the shell and controller app:
+
+```sh
+./gradlew :android-shell:assembleDebug :controller-app:assembleDebug
+```
+
+Copy the latest shell APK into the web launcher static directory:
+
+```sh
+cp android-shell/build/outputs/apk/debug/android-shell-debug.apk web-launcher/static/silent-shell.apk
+```
+
+Install the controller app:
+
+```sh
+adb install -r controller-app/build/outputs/apk/debug/controller-app-debug.apk
+```
+
+## Start The Shell Process
+
+### Option 1: Browser Launcher
+
+```sh
+cd web-launcher
+npm install
+npm run dev
+```
+
+Open the printed local URL in Chrome, click **Start ShadowAuto Assistant**, select the Android device, and authorize ADB if Android asks.
+
+If the browser reports that the device is already in use, close Android Studio and kill adb, then retry:
+
+```sh
+adb kill-server
+```
+
+### Option 2: Manual ADB
+
+```sh
+adb push android-shell/build/outputs/apk/debug/android-shell-debug.apk /data/local/tmp/silent-shell.apk
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup setsid app_process /system/bin com.silentauto.shell.Main --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
+```
+
+View shell logs:
+
+```sh
+adb logcat -v time -s ShadowAutoShell
+```
+
+Stop the shell process:
+
+```sh
+adb shell "kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data/local/tmp/silent-auto.pid"
+```
+
+## Use The Android App
+
+1. Launch ShadowAuto on the phone.
+2. On first launch, enter API Key, API URL, and model. The app can load available models after API Key and URL are entered.
+3. Tap the test button. If the model responds normally, the config is saved.
+4. Enter a goal, for example: `Use Taobao Flash Buy to order me a grande Starbucks vanilla latte`.
+5. Tap Run. The task input hides, and the virtual screen, Stop button, and progress logs appear.
+6. Tap the virtual screen preview to open a larger preview dialog.
+7. Tap Stop to stop the current task, or use the top-right stop button in the controller app to stop all tasks.
+8. Tap the floating plus button to create another parallel task. Too many parallel tasks may heat up or slow down the phone.
+
+## Core Principle
+
+ShadowAuto uses a shell-owned ReAct-style automation loop:
+
+1. The shell process starts under `adb shell` by `app_process`, enabling access to shell-level Android services and hidden APIs.
+2. For each automation task, the shell creates a VirtualDisplay and launches the target Android app on that display.
+3. The controller app sends a JSON-RPC `startTask` request to `127.0.0.1:43110` with the user goal and model config.
+4. The shell asks the AI model to reason about the goal and use tools.
+5. Tool calls perform real UI operations: dump UI layout, tap targets, tap coordinates, focus inputs, input text, select all, delete, paste clipboard, scroll, drag, press Back, press Enter/Search, wait, or finish.
+6. UiAutomation observes the UI tree for the virtual display. The shell can return a compact actionable layout or a full layout dump.
+7. InputManager injects touch and key events into the target display instead of the main phone display.
+8. Screen frames and progress logs are streamed back to the Android app in real time through local JSON-RPC events.
+9. The loop repeats until the model calls `finish`, the user stops the task, or an error occurs.
+
+This architecture keeps the automated app off the main display while still allowing the user to monitor progress from the controller app.
+
+## JSON-RPC Overview
+
+The shell listens on loopback only:
+
+```text
+127.0.0.1:43110
+```
+
+Main methods:
+
+- `startTask`: starts one automation task with `taskId`, `goal`, `apiKey`, `apiBase`, and `model`.
+- `stopTask`: stops a specific task when `taskId` is provided, or all tasks when it is omitted.
+- `status`: returns current shell status.
+- `logs`: returns recent logs.
+- `ping`: health check.
+
+The server is intentionally unauthenticated because it binds to local loopback and is designed for a local controller app. Do not expose this port externally.
+
+## Notes And Limitations
+
+- This is an automation research prototype, not a production-grade assistant.
+- The AI provider receives the task goal and UI context needed for automation. Do not use it with sensitive content unless you trust the configured provider.
+- Some protected pages may appear black in screen streaming because of Android security restrictions, such as payment password screens.
+- Running multiple tasks can change clipboard contents and may cause input failure or text mix-ups.
+- Do not tap or open the app being automated from the physical display or Recents while the task is running; doing so can move the app away from the virtual display and break automation.
+- Hidden APIs and shell permissions can vary between Android versions and vendors.
+- The browser launcher needs exclusive WebUSB access to the device. Android Studio or a running adb server may block it.
+
+## Development Test
+
+With a test device or emulator connected:
+
+```sh
+node scripts/emulator-mock-ai-test.mjs
+```
+
+## License
+
+ShadowAuto is licensed under the [Apache License 2.0](LICENSE).

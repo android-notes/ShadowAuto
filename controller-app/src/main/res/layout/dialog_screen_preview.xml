@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialogScreenHolder"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/screen"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/dialogScreenImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/screen"
+        android:scaleType="fitCenter" />
+</FrameLayout>

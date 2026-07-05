@@ -1,0 +1,10 @@
+.DS_Store
+.gradle/
+build/
+local.properties
+
+*/build/
+*/.gradle/
+
+web-launcher/node_modules/
+web-launcher/.svelte-kit/

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:id="@+id/mainPage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/bg"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:id="@+id/mainBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/mainTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/main_title"
+                android:textColor="@color/text"
+                android:textSize="32sp" />
+
+            <ImageButton
+                android:id="@+id/stopAllButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/stop_all_content_description"
+                android:padding="10dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_stop_24"
+                android:tint="@color/danger" />
+
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/settings_content_description"
+                android:padding="10dp"
+                android:scaleType="center"
+                android:src="@android:drawable/ic_menu_manage"
+                android:tint="@color/text" />
+
+            <ImageButton
+                android:id="@+id/helpButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/help_content_description"
+                android:padding="10dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_help_24"
+                android:tint="@color/primary_dark" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/pageIndicator"
+            android:layout_width="match_parent"
+            android:layout_height="14dp"
+            android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:textColor="@color/primary"
+            android:textSize="12sp" />
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/taskPager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="16dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/addTaskButton"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/button_fab"
+        android:elevation="6dp"
+        android:text="+"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        android:textSize="28sp" />
+</FrameLayout>

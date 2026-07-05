@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FAF8FF</color>
+    <color name="card">#F2F0FA</color>
+    <color name="primary">#4E68A4</color>
+    <color name="primary_dark">#31456F</color>
+    <color name="danger">#B3261E</color>
+    <color name="text">#151927</color>
+    <color name="muted">#666A78</color>
+    <color name="line">#E2E0EC</color>
+    <color name="white">#FFFFFF</color>
+    <color name="screen">#101827</color>
+    <color name="icon_bubble">#E6ECFF</color>
+</resources>

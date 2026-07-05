@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/helpPage"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg"
+    android:orientation="vertical"
+    android:paddingStart="28dp"
+    android:paddingTop="28dp"
+    android:paddingEnd="28dp"
+    android:paddingBottom="28dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/help_title"
+            android:textColor="@color/text"
+            android:textSize="32sp" />
+
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:background="@drawable/bg_card"
+                android:elevation="1dp"
+                android:orientation="vertical"
+                android:padding="22dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/help_usage_title"
+                    android:textColor="@color/text"
+                    android:textSize="21sp" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_usage_config" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_usage_run" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_usage_live" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_usage_parallel" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_usage_stop_all" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card"
+                android:elevation="1dp"
+                android:orientation="vertical"
+                android:padding="22dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/help_notice_title"
+                    android:textColor="@color/text"
+                    android:textSize="21sp" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_parallel_heat" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_clipboard" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_virtual_app" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_secure_screen" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_goal" />
+
+                <TextView
+                    style="@style/HelpItemText"
+                    android:text="@string/help_notice_exit" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
