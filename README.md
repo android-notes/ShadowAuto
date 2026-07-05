@@ -66,6 +66,10 @@ adb install -r controller-app/build/outputs/apk/debug/controller-app-debug.apk
 
 ### Option 1: Browser Launcher
 
+Online launcher: [https://android-notes.github.io/ShadowAuto/](https://android-notes.github.io/ShadowAuto/)
+
+You can also run it locally:
+
 ```sh
 cd web-launcher
 npm install

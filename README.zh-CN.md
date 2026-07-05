@@ -64,6 +64,10 @@ adb install -r controller-app/build/outputs/apk/debug/controller-app-debug.apk
 
 ### 方式一：浏览器启动器
 
+线上启动器：[https://android-notes.github.io/ShadowAuto/](https://android-notes.github.io/ShadowAuto/)
+
+也可以在本地运行：
+
 ```sh
 cd web-launcher
 npm install
