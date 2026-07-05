@@ -24,11 +24,15 @@ The Chinese product name is **隐控**.
 
 If the current page cannot play the embedded video, open [shadowauto.mp4](shadowauto.mp4).
 
+## Technical Deep Dive
+
+- [Android Virtual Display and AI background automation practice](docs/android-virtual-display-ai-automation.md) (Chinese)
+
 ## Project Layout
 
 - `android-shell`: shell-side automation process started by `app_process`. It owns VirtualDisplay creation, app launching, UI node reading, OCR fallback, input injection, clipboard operations, AI tool-call loop, JSON-RPC, logs, and H.264 virtual screen streaming.
 - `controller-app`: Android app used to configure the model, enter automation goals, watch the virtual screen, read progress logs, start tasks, and stop one or all tasks.
-- `web-launcher`: Svelte + TangoADB WebUSB launcher. It shows one launch button, lets the user select a device in the browser, uploads the shell APK, kills the previous shell process, and starts `app_process`.
+- `web-launcher`: Svelte + TangoADB WebUSB launcher. It shows one launch button, lets the user select a device in the browser, uploads the shell APK, OCR files, and controller APK, then starts `app_process`.
 - `android-stubs`: compile-only Android hidden API stubs used by the shell module.
 - `scripts`: local test helpers.
 
