@@ -8,7 +8,6 @@ const devicePath = '/data/local/tmp/silent-shell.apk';
 const controllerPath = '/data/local/tmp/shadowauto-controller.apk';
 const controllerComponent = 'com.silentauto.controller/.MainActivity';
 const pidPath = '/data/local/tmp/silent-auto.pid';
-const processMarker = 'com.silentauto.shell.Main';
 const ocrRoot = '/data/local/tmp/shadowauto/ocr';
 const ocrFiles = [
   'lib/arm64-v8a/libNative.so',
@@ -148,13 +147,9 @@ async function shell(adb: Adb, command: string) {
 }
 
 function startCommand() {
-  const killPrevious = [
-    `if [ -f ${pidPath} ]; then kill $(cat ${pidPath}) 2>/dev/null; rm -f ${pidPath}; fi`,
-    `self=$$; for p in /proc/[0-9]*; do pid=$(basename "$p"); if [ "$pid" = "$self" ]; then continue; fi; cmd=$(tr '\\0' ' ' < "$p/cmdline" 2>/dev/null || true); case "$cmd" in *${processMarker}*) kill "$pid" 2>/dev/null || true;; esac; done`
-  ].join('; ');
   const env = `CLASSPATH=${quote(devicePath)}`;
   const main = 'app_process /system/bin com.silentauto.shell.Main --port=43110';
-  return `${killPrevious}; ${env} nohup setsid ${main} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
+  return `${env} nohup setsid ${main} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
 }
 
 function installControllerCommand() {
