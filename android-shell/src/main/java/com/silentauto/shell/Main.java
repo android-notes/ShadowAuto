@@ -10,17 +10,28 @@ import java.io.IOException;
 public final class Main {
     private static final String PROCESS_MARKER = "com.silentauto.shell.Main";
 
-    public static void main(String[] args) throws Exception {
+    static {
+        installGlobalExceptionLogger();
+    }
+
+    public static void main(String[] args) {
+        try {
+            run(args);
+        } catch (Throwable e) {
+            printFatal(Thread.currentThread(), e);
+            Process.killProcess(Process.myPid());
+            System.exit(1);
+        }
+    }
+
+    private static void run(String[] args) throws Exception {
         Config config = Config.from(args);
         LogHub logs = new LogHub();
         if (hasFlag(args, "--ocr-test")) {
             OcrTest.run(logs);
             return;
         }
-        try {
-            Looper.prepareMainLooper();
-        } catch (Throwable ignored) {
-        }
+        prepareLooper();
         killExistingShellProcesses();
         ShellContext.init();
         if (hasFlag(args, "--video-test")) {
@@ -29,7 +40,52 @@ public final class Main {
         }
         AutomationEngine engine = new AutomationEngine(config, logs);
         logs.info("silent shell listening on 127.0.0.1:" + config.port);
-        new RpcServer(config.port, engine, logs).run();
+        Thread rpcThread = new Thread(() -> runRpcServer(config, logs, engine), "rpc-server");
+        rpcThread.start();
+        Looper.loop();
+    }
+
+    private static void installGlobalExceptionLogger() {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            printFatal(thread, error);
+            Process.killProcess(Process.myPid());
+            System.exit(1);
+        });
+    }
+
+    private static void printFatal(Thread thread, Throwable error) {
+        synchronized (System.err) {
+            String name = thread == null ? "unknown" : thread.getName();
+            System.err.println("[fatal] uncaught exception in thread: " + name);
+            if (error != null) {
+                error.printStackTrace(System.err);
+            }
+            System.err.flush();
+        }
+    }
+
+    private static void prepareLooper() {
+        if (Looper.myLooper() != null) {
+            return;
+        }
+        try {
+            Looper.prepareMainLooper();
+        } catch (Throwable ignored) {
+            if (Looper.myLooper() == null) {
+                Looper.prepare();
+            }
+        }
+    }
+
+    private static void runRpcServer(Config config, LogHub logs, AutomationEngine engine) {
+        try {
+            new RpcServer(config.port, engine, logs).run();
+        } catch (Throwable e) {
+            logs.error("rpc server failed", e);
+            printFatal(Thread.currentThread(), e);
+            Process.killProcess(Process.myPid());
+            System.exit(1);
+        }
     }
 
     private static boolean hasFlag(String[] args, String flag) {
