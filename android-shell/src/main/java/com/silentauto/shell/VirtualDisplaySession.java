@@ -47,17 +47,31 @@ final class VirtualDisplaySession {
     static VirtualDisplaySession create(int width, int height, int dpi, Surface outputSurface) {
         DisplayManager manager = displayManager();
         ImageReader captureReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
-        int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+        int baseFlags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
-                | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY
-                | hiddenFlag("VIRTUAL_DISPLAY_FLAG_SUPPORTS_TOUCH")
-                | hiddenFlag("VIRTUAL_DISPLAY_FLAG_OWN_FOCUS")
-                | hiddenFlag("VIRTUAL_DISPLAY_FLAG_TRUSTED");
-        VirtualDisplay display = manager.createVirtualDisplay("ShadowAuto", width, height, dpi, outputSurface, flags);
-        if (display == null || display.getDisplay() == null) {
-            throw new IllegalStateException("createVirtualDisplay failed");
+                | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
+        int touchFlag = hiddenFlag("VIRTUAL_DISPLAY_FLAG_SUPPORTS_TOUCH");
+        int focusFlag = hiddenFlag("VIRTUAL_DISPLAY_FLAG_OWN_FOCUS");
+        int trustedFlag = hiddenFlag("VIRTUAL_DISPLAY_FLAG_TRUSTED");
+        int[] candidates = new int[]{
+                baseFlags | touchFlag | focusFlag | trustedFlag,
+                baseFlags | touchFlag | focusFlag,
+                baseFlags | touchFlag,
+                baseFlags
+        };
+        Throwable lastError = null;
+        for (int flags : candidates) {
+            try {
+                VirtualDisplay display = manager.createVirtualDisplay("ShadowAuto", width, height, dpi, outputSurface, flags);
+                if (display != null && display.getDisplay() != null) {
+                    return new VirtualDisplaySession(width, height, dpi, captureReader, outputSurface, display);
+                }
+            } catch (Throwable e) {
+                lastError = e;
+            }
         }
-        return new VirtualDisplaySession(width, height, dpi, captureReader, outputSurface, display);
+        captureReader.close();
+        throw new IllegalStateException("createVirtualDisplay failed", lastError);
     }
 
     synchronized Bitmap captureBitmap(int retries, long delayMs) {

@@ -104,10 +104,18 @@ adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
 adb shell "rm -rf /data/local/tmp/shadowauto/ocr && mkdir -p /data/local/tmp/shadowauto/ocr"
 adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
 adb shell "if [ -f /data/local/tmp/silent-auto.pid ]; then kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data/local/tmp/silent-auto.pid; fi"
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup setsid app_process /system/bin com.silentauto.shell.Main --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
 ```
 
 OCR 文件是 `get_screen_ocr` tool call 必需的。只推 `silent-shell.apk` 时，普通自动化可以启动，但遇到无障碍节点缺失的页面时 OCR 兜底会失败。
+
+如果启动后 logcat 出现 `ClassNotFoundException: com.silentauto.shell.Main`，通常是 `silent-shell.apk` 没有成功推送到设备。先检查：
+
+```sh
+adb shell "ls -lh /data/local/tmp/silent-shell.apk"
+```
+
+连接多个设备时，建议所有命令都加 `-s <serial>`，例如 `adb -s emulator-5554 push ...`。
 
 查看 shell 日志：
 

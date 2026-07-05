@@ -149,7 +149,7 @@ async function shell(adb: Adb, command: string) {
 function startCommand() {
   const env = `CLASSPATH=${quote(devicePath)}`;
   const main = 'app_process /system/bin com.silentauto.shell.Main --port=43110';
-  return `${env} nohup setsid ${main} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
+  return `${env} nohup sh -c ${quote(`exec ${main}`)} >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo $! > ${pidPath}; echo started`;
 }
 
 function installControllerCommand() {

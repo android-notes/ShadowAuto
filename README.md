@@ -106,10 +106,18 @@ adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
 adb shell "rm -rf /data/local/tmp/shadowauto/ocr && mkdir -p /data/local/tmp/shadowauto/ocr"
 adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
 adb shell "if [ -f /data/local/tmp/silent-auto.pid ]; then kill \$(cat /data/local/tmp/silent-auto.pid) 2>/dev/null; rm -f /data/local/tmp/silent-auto.pid; fi"
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup setsid app_process /system/bin com.silentauto.shell.Main --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null & echo \$! >/data/local/tmp/silent-auto.pid"
 ```
 
 The OCR files are required for the `get_screen_ocr` tool. If you only push `silent-shell.apk`, normal automation can start, but OCR fallback will fail when the target page has no accessibility nodes.
+
+If logcat shows `ClassNotFoundException: com.silentauto.shell.Main` after startup, `silent-shell.apk` was usually not pushed to the device. Check it first:
+
+```sh
+adb shell "ls -lh /data/local/tmp/silent-shell.apk"
+```
+
+When multiple devices are connected, add `-s <serial>` to every command, for example `adb -s emulator-5554 push ...`.
 
 View shell logs:
 

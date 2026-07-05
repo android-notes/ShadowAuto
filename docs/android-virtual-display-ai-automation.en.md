@@ -49,9 +49,7 @@ A normal Android app is constrained by the app sandbox. It cannot reliably acces
 ShadowAuto puts the automation engine in a shell process:
 
 ```sh
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk \
-  nohup setsid app_process /system/bin com.silentauto.shell.Main \
-  --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
 ```
 
 The process runs with shell permissions, which is enough for Android 10 and later. Root is not required.
@@ -511,9 +509,7 @@ Manual ADB startup:
 ```sh
 adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
 adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk \
-  nohup setsid app_process /system/bin com.silentauto.shell.Main \
-  --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
 ```
 
 ### 3. Configure the AI model

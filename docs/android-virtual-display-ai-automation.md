@@ -51,9 +51,7 @@ flowchart TD
 ShadowAuto 的做法是把自动化核心放到一个 shell 进程里运行：
 
 ```sh
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk \
-  nohup setsid app_process /system/bin com.silentauto.shell.Main \
-  --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
 ```
 
 这样进程以 shell 身份运行，可以在 Android 10 及以上设备上使用 shell 权限访问系统服务和部分 hidden API，不需要 root。
@@ -529,9 +527,7 @@ https://android-notes.github.io/ShadowAuto/
 ```sh
 adb push web-launcher/static/silent-shell.apk /data/local/tmp/silent-shell.apk
 adb push web-launcher/static/ocr/. /data/local/tmp/shadowauto/ocr/
-adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk \
-  nohup setsid app_process /system/bin com.silentauto.shell.Main \
-  --port=43110 >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
+adb shell "CLASSPATH=/data/local/tmp/silent-shell.apk nohup sh -c 'exec app_process /system/bin com.silentauto.shell.Main --port=43110' >/data/local/tmp/silent-auto.log 2>&1 </dev/null &"
 ```
 
 ### 3. 配置大模型
